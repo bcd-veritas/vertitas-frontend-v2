@@ -30,7 +30,10 @@ export function RulesPanel({ market }: { market: ApiMarket }) {
       <LeaderRow k="min_order" v="1 SHARE" />
       <LeaderRow k="fee" v={`${market.feeBps} BPS`} />
       <LeaderRow k="settlement" v="USDC" />
-      <LeaderRow k="outcomes" v={`${market.outcomes.length} (BINARY)`} />
+      <LeaderRow
+        k="outcomes"
+        v={`${market.outcomes.length} (${market.outcomes.length === 2 ? "BINARY" : "MULTI"})`}
+      />
       <LeaderRow k="market_id" v={trunc(market.id, 8, 4)} />
     </section>
   );

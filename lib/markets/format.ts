@@ -54,7 +54,12 @@ export function closesLabel(iso: string): string {
   const d = new Date(iso);
   const month = d.toLocaleString("en-US", { month: "short", timeZone: "UTC" });
   const time = d
-    .toLocaleString("en-US", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "UTC" })
+    .toLocaleString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+      timeZone: "UTC",
+    })
     .replace(" ", "");
   return `${month} ${d.getUTCDate()} @ ${time}`.toUpperCase();
 }
@@ -68,4 +73,19 @@ export function countdown(iso: string, now: number = Date.now()): string {
   const hours = Math.floor(mins / 60);
   if (hours < 24) return `T-${hours}H`;
   return `T-${Math.floor(hours / 24)}D`;
+}
+
+/** Fixed-point price string (1e8 == 100%) -> cents number: "62000000" -> 62. */
+export function toCents(price: string): number {
+  return Number(price) / 1_000_000;
+}
+
+/** Fixed-point price -> "62¢" (rounded to the nearest whole cent). */
+export function centsLabel(price: string): string {
+  return `${Math.round(toCents(price))}¢`;
+}
+
+/** Fixed-point share quantity (1e8 == 1 share) -> "1,250" (whole shares). */
+export function sharesLabel(quantity: string): string {
+  return (BigInt(quantity) / 100_000_000n).toLocaleString("en-US");
 }

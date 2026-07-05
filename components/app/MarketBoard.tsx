@@ -29,8 +29,8 @@ const CATEGORY_COLORS: Record<string, { text: string; inactive: string; bg: stri
   "equities": { text: "text-violet-400", inactive: "text-violet-400/40 hover:text-violet-400", bg: "bg-violet-400" },
   "tech": { text: "text-cyan-400", inactive: "text-cyan-400/40 hover:text-cyan-400", bg: "bg-cyan-400" },
 };
-function catColor(c: string) {
-  return CATEGORY_COLORS[c.toLowerCase()] ?? { text: "text-accent", inactive: "text-accent/40 hover:text-accent", bg: "bg-accent" };
+function catColor(c: string | null) {
+  return CATEGORY_COLORS[c?.toLowerCase() ?? ""] ?? { text: "text-accent", inactive: "text-accent/40 hover:text-accent", bg: "bg-accent" };
 }
 
 export function MarketBoard({

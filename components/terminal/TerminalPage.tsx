@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import type { ApiMarket } from "@/lib/markets/types";
+import type { ApiMarket, OrderBookData, PricePoint } from "@/lib/markets/types";
 import { closesLabel, countdown } from "@/lib/markets/format";
 import { Topbar } from "../app/Topbar";
 import { CategoryIcon } from "../app/categoryIcon";
@@ -12,13 +12,19 @@ import { RulesPanel } from "./RulesPanel";
 import { RelatedMarkets } from "./RelatedMarkets";
 import { ComingSoonPanel } from "./ComingSoon";
 import { MarketComments } from "./MarketComments";
+import { OrderBook } from "./OrderBook";
+import { PriceChart } from "./PriceChart";
 
 export function TerminalPage({
   market,
   related,
+  books,
+  series,
 }: {
   market: ApiMarket;
   related: ApiMarket[];
+  books: OrderBookData[];
+  series: PricePoint[][];
 }) {
   const live = market.status === "ACTIVE";
 
@@ -51,8 +57,8 @@ export function TerminalPage({
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_380px] gap-5 items-start">
           {/* Main column */}
           <div className="flex flex-col gap-5 min-w-0">
-            <ComingSoonPanel heading="PRICE CHART" minHeight="min-h-[300px]" />
-            <ComingSoonPanel heading="ORDER BOOK" minHeight="min-h-[260px]" />
+            <PriceChart outcomes={market.outcomes} series={series} />
+            <OrderBook outcomes={market.outcomes} books={books} />
             <MarketComments marketId={market.id} />
             <RelatedMarkets markets={related} />
           </div>

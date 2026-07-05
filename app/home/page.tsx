@@ -7,6 +7,9 @@ export const metadata: Metadata = {
   description: "Live prediction markets. Prices are probabilities.",
 };
 
+// temp: render per request, never freeze the board at build time.
+export const dynamic = "force-dynamic";
+
 export default async function HomePage() {
   const [markets, categories, featured] = await Promise.all([
     getMarkets(),

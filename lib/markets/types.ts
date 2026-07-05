@@ -87,3 +87,23 @@ export type MarketDTO = {
 
   outcomes: OutcomeDTO[];
 };
+
+// ---- Order book (GET /order-book/:tokenId, server-aggregated levels) ----
+export type BookLevel = {
+  price: string;
+  quantity: string;
+  orderCount: number;
+};
+
+export type OrderBookData = {
+  bids: BookLevel[];
+  asks: BookLevel[];
+};
+
+// ---- Price history (GET /order-book/:tokenId/price-history) ----
+export type PricePoint = {
+  id: string;
+  price: string;
+  quantity: string;
+  createdAt: string;
+};

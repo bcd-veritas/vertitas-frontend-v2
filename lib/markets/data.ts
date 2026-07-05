@@ -5,7 +5,9 @@ import type {
   FeaturedComment,
   FeaturedMarket,
   MarketDTO,
+  OrderBookData,
   OutcomeDTO,
+  PricePoint,
 } from "./types";
 
 const envPath = process.env.NEXT_PUBLIC_API_URL;
@@ -102,12 +104,18 @@ export async function getFeaturedMarkets(): Promise<FeaturedMarket[]> {
  * return `{ items: Comment[] }` (or a bare array). Returns [] gracefully until
  * that endpoint exists, so the terminal renders an empty state, not an error.
  */
-export async function getMarketComments(marketId: string): Promise<FeaturedComment[]> {
-  const res = await fetch(`${envPath}/markets/${encodeURIComponent(marketId)}/comments`);
+export async function getMarketComments(
+  marketId: string,
+): Promise<FeaturedComment[]> {
+  const res = await fetch(
+    `${envPath}/markets/${encodeURIComponent(marketId)}/comments`,
+  );
   if (!res.ok) return [];
 
   const data = await res.json();
-  const items: FeaturedCommentDTO[] = Array.isArray(data) ? data : (data.items ?? []);
+  const items: FeaturedCommentDTO[] = Array.isArray(data)
+    ? data
+    : (data.items ?? []);
   return items.map(mapComment);
 }
 
@@ -125,4 +133,61 @@ export async function getMarket(id: string): Promise<ApiMarket | null> {
 
   const dto: MarketDTO = await res.json();
   return mapMarket(dto);
+}
+
+/**
+ * Aggregated CLOB ladder for one outcome token. Degrades to an empty book on
+ * any failure so the panel renders its empty state instead of erroring.
+ */
+export async function getOrderBook(tokenId: string): Promise<OrderBookData> {
+  try {
+    const res = await fetch(
+      `${envPath}/order-book/${encodeURIComponent(tokenId)}`,
+    );
+    if (!res.ok) return { bids: [], asks: [] };
+
+    const data = await res.json();
+    console.log(data);
+    return { bids: data.bids ?? [], asks: data.asks ?? [] };
+  } catch {
+    return { bids: [], asks: [] };
+  }
+}
+
+const PRICE_HISTORY_PAGE = 100;
+
+// trade-price history for one outcome token, oldest-first for charting. fetches page 1, then any remaining pages (up to maxPoints) in parallel. degrades to [] on any failure.
+export async function getPriceHistory(
+  tokenId: string,
+  maxPoints = 500,
+): Promise<PricePoint[]> {
+  const base = `${envPath}/order-book/${encodeURIComponent(tokenId)}/price-history`;
+  try {
+    const first = await fetch(`${base}?limit=${PRICE_HISTORY_PAGE}`);
+    if (!first.ok) return [];
+
+    const data = await first.json();
+    const items: PricePoint[] = data.items ?? [];
+    const total: number =
+      typeof data.total === "number" ? data.total : items.length;
+
+    const want = Math.min(total, maxPoints);
+    const pages = Math.ceil(want / PRICE_HISTORY_PAGE);
+    if (pages > 1) {
+      const rest = await Promise.all(
+        Array.from({ length: pages - 1 }, (_, i) =>
+          fetch(`${base}?limit=${PRICE_HISTORY_PAGE}&page=${i + 2}`)
+            .then((r) => (r.ok ? r.json() : { items: [] }))
+            .then((d): PricePoint[] => d.items ?? [])
+            .catch((): PricePoint[] => []),
+        ),
+      );
+      for (const page of rest) items.push(...page);
+    }
+
+    // for chart
+    return items.slice(0, maxPoints).reverse();
+  } catch {
+    return [];
+  }
 }
