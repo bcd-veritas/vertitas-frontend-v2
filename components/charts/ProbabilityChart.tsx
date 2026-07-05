@@ -2,11 +2,24 @@
 
 import { useEffect, useRef } from "react";
 import * as echarts from "echarts/core";
-import { LineChart } from "echarts/charts";
-import { GridComponent, TooltipComponent } from "echarts/components";
+import { LineChart, EffectScatterChart } from "echarts/charts";
+import {
+  GridComponent,
+  TooltipComponent,
+  AxisPointerComponent,
+  MarkLineComponent,
+} from "echarts/components";
 import { CanvasRenderer } from "echarts/renderers";
 
-echarts.use([LineChart, GridComponent, TooltipComponent, CanvasRenderer]);
+echarts.use([
+  LineChart,
+  EffectScatterChart,
+  GridComponent,
+  TooltipComponent,
+  AxisPointerComponent,
+  MarkLineComponent,
+  CanvasRenderer,
+]);
 
 export type ChartPoint = { t: number; pct: number };
 export type ChartSeries = {
@@ -36,7 +49,7 @@ function utcAxisLabel(t: number, spanMs: number): string {
   return `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}`;
 }
 
-/** Tooltip header: "JUL 12 · 14:03" (UTC). */
+/** Crosshair / tooltip header: "JUL 12 · 14:03" (UTC). */
 function utcTooltipHeader(t: number): string {
   const d = new Date(t);
   const hh = String(d.getUTCHours()).padStart(2, "0");
@@ -111,12 +124,104 @@ export function ProbabilityChart({
     const maxData = Math.max(...allPts.map((p) => p.pct));
     const maxY = Math.max(10, Math.ceil((maxData * 1.15) / 10) * 10);
 
-    const lineColor = cssVar("--color-line", "rgba(255,255,255,0.08)");
+    const hairline = cssVar("--color-line", "rgba(255,255,255,0.08)");
     const mutedColor = cssVar("--color-muted", "#a89f9c");
     const surfaceColor = cssVar("--color-surface", "#221d1d");
+    const bgColor = cssVar("--color-bg", "#161313");
     const fgColor = cssVar("--color-fg", "#f2efed");
     const monoFont = cssVar("--font-mono", "ui-monospace, monospace");
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    // Square mono pills the crosshair pins to both axes.
+    const pointerLabel = {
+      backgroundColor: surfaceColor,
+      borderColor: hairline,
+      borderWidth: 1,
+      borderRadius: 0,
+      shadowBlur: 0,
+      color: fgColor,
+      fontFamily: monoFont,
+      fontSize: 9,
+      padding: [3, 5] as [number, number],
+    };
+
+    const lineSeries = visible.map((s, si) => {
+      const filled = filledBySeries[si];
+      const data = grid.map((t, gi) => [t, filled[gi]]);
+      const lastVal = filled[filled.length - 1];
+      return {
+        id: s.key,
+        name: s.label,
+        type: "line" as const,
+        // Prints hold until the next trade — steps, not slopes.
+        step: "end" as const,
+        data,
+        color: s.color,
+        showSymbol: false,
+        symbol: "circle",
+        symbolSize: 5,
+        lineStyle: { width: 1.5 },
+        emphasis: { focus: "series" as const },
+        blur: { lineStyle: { opacity: 0.15 }, itemStyle: { opacity: 0.15 } },
+        // Solo line gets a soft floor gradient; overlapping fills read as mud.
+        areaStyle:
+          visible.length === 1
+            ? {
+                color: {
+                  type: "linear" as const,
+                  x: 0, y: 0, x2: 0, y2: 1,
+                  colorStops: [
+                    { offset: 0, color: `${s.color}2E` },
+                    { offset: 1, color: `${s.color}00` },
+                  ],
+                },
+              }
+            : undefined,
+        // Lead series pins its last print to the axis, terminal price-tag style.
+        markLine:
+          si === 0 && lastVal != null
+            ? {
+                silent: true,
+                symbol: "none",
+                animation: false,
+                lineStyle: { color: s.color, width: 1, type: [2, 3], opacity: 0.4 },
+                label: {
+                  show: true,
+                  position: "end" as const,
+                  formatter: `${Math.round(lastVal)}%`,
+                  backgroundColor: s.color,
+                  color: bgColor,
+                  fontFamily: monoFont,
+                  fontSize: 9,
+                  fontWeight: 700 as const,
+                  padding: [2, 4] as [number, number],
+                },
+                data: [{ yAxis: lastVal }],
+              }
+            : undefined,
+      };
+    });
+
+    // Live dot on each series' newest print — rippling unless motion is reduced.
+    const liveDots = visible.map((s, si) => {
+      const filled = filledBySeries[si];
+      const lastVal = filled[filled.length - 1];
+      return {
+        id: `${s.key}::live`,
+        name: s.label,
+        type: "effectScatter" as const,
+        data: lastVal == null ? [] : [[grid[grid.length - 1], lastVal]],
+        color: s.color,
+        symbolSize: 5,
+        rippleEffect: reducedMotion
+          ? { scale: 1, brushType: "stroke" as const }
+          : { scale: 2.6, period: 3.2, brushType: "stroke" as const },
+        silent: true,
+        tooltip: { show: false },
+        blur: { itemStyle: { opacity: 0.15 } },
+        zlevel: 1,
+      };
+    });
 
     chart.setOption(
       {
@@ -134,9 +239,16 @@ export function ProbabilityChart({
           axisLabel: {
             color: mutedColor,
             fontFamily: monoFont,
-            fontSize: 9,
+            fontSize: 10,
             hideOverlap: true,
             formatter: (value: number) => utcAxisLabel(value, spanMs),
+          },
+          axisPointer: {
+            label: {
+              ...pointerLabel,
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              formatter: (p: any) => utcTooltipHeader(Number(p.value)),
+            },
           },
         },
         yAxis: {
@@ -148,28 +260,44 @@ export function ProbabilityChart({
           axisLabel: {
             color: mutedColor,
             fontFamily: monoFont,
-            fontSize: 9,
+            fontSize: 10,
             formatter: (v: number) => `${Math.round(v)}%`,
           },
-          splitLine: { lineStyle: { color: lineColor, type: [2, 4] } },
+          splitLine: { lineStyle: { color: hairline, type: "solid" as const } },
+          axisPointer: {
+            label: {
+              ...pointerLabel,
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              formatter: (p: any) => `${Math.round(Number(p.value))}%`,
+            },
+          },
         },
         tooltip: {
           trigger: "axis",
-          axisPointer: { type: "line", lineStyle: { color: mutedColor, width: 1, opacity: 0.5 } },
+          axisPointer: {
+            type: "cross",
+            snap: true,
+            lineStyle: { color: mutedColor, width: 1, opacity: 0.45 },
+            crossStyle: { color: mutedColor, width: 1, opacity: 0.45 },
+          },
           backgroundColor: surfaceColor,
-          borderColor: lineColor,
+          borderColor: hairline,
           borderWidth: 1,
-          padding: [8, 10],
-          textStyle: { color: fgColor, fontFamily: monoFont, fontSize: 11 },
+          padding: [6, 8],
+          extraCssText: "border-radius:0;box-shadow:none;",
+          textStyle: { color: fgColor, fontFamily: monoFont, fontSize: 10 },
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           formatter: (params: any) => {
             const rows = (Array.isArray(params) ? params : [params])
-              .filter((p: { value?: [number, number | null] }) => p.value?.[1] != null)
+              .filter(
+                (p: { seriesType?: string; value?: [number, number | null] }) =>
+                  p.seriesType === "line" && p.value?.[1] != null,
+              )
               .sort((a, b) => (b.value?.[1] ?? 0) - (a.value?.[1] ?? 0))
               .map(
                 (p) =>
                   `<div style="display:flex;align-items:center;gap:6px;margin-top:2px;">` +
-                  `<span style="width:7px;height:7px;border-radius:9999px;background:${p.color};display:inline-block;"></span>` +
+                  `<span style="width:7px;height:7px;background:${p.color};display:inline-block;"></span>` +
                   `<span style="opacity:.75;text-transform:uppercase;letter-spacing:.08em;font-size:10px;">${p.seriesName}</span>` +
                   `<span style="margin-left:auto;padding-left:14px;font-variant-numeric:tabular-nums;">${Math.round(p.value[1])}%</span>` +
                   `</div>`,
@@ -181,31 +309,7 @@ export function ProbabilityChart({
             );
           },
         },
-        series: visible.map((s, si) => {
-          const filled = filledBySeries[si];
-          const data: unknown[] = grid.map((t, gi) => [t, filled[gi]]);
-          // Last point renders a persistent dot (Kalshi-style live end marker).
-          const lastVal = filled[filled.length - 1];
-          data[data.length - 1] = {
-            value: [grid[grid.length - 1], lastVal],
-            symbol: "circle",
-            symbolSize: 6,
-          };
-          return {
-            id: s.key,
-            name: s.label,
-            type: "line" as const,
-            data,
-            color: s.color,
-            // Hidden until hover/tooltip — gives the "snap dot" on scrub.
-            showSymbol: false,
-            symbol: "circle",
-            symbolSize: 5,
-            lineStyle: { width: 1.5 },
-            emphasis: { focus: "series" as const },
-            blur: { lineStyle: { opacity: 0.15 }, itemStyle: { opacity: 0.15 } },
-          };
-        }),
+        series: [...lineSeries, ...liveDots],
       },
       { notMerge: true },
     );

@@ -2,11 +2,24 @@
 
 import { useEffect, useRef } from "react";
 import * as echarts from "echarts/core";
-import { LineChart } from "echarts/charts";
-import { GridComponent, TooltipComponent } from "echarts/components";
+import { LineChart, EffectScatterChart } from "echarts/charts";
+import {
+  GridComponent,
+  TooltipComponent,
+  AxisPointerComponent,
+  MarkLineComponent,
+} from "echarts/components";
 import { CanvasRenderer } from "echarts/renderers";
 
-echarts.use([LineChart, GridComponent, TooltipComponent, CanvasRenderer]);
+echarts.use([
+  LineChart,
+  EffectScatterChart,
+  GridComponent,
+  TooltipComponent,
+  AxisPointerComponent,
+  MarkLineComponent,
+  CanvasRenderer,
+]);
 
 export type PnlPoint = { t: number; usd: number };
 
@@ -28,11 +41,6 @@ function fmtUsd(v: number): string {
   const abs = Math.abs(v);
   if (abs >= 1000) return `${sign}$${(abs / 1000).toFixed(1)}k`;
   return `${sign}$${Math.round(abs)}`;
-}
-
-/** Signed 2-decimal tooltip amount: "+$412.08" / "-$86.40". */
-function fmtUsdExact(v: number): string {
-  return `${v < 0 ? "-" : "+"}$${Math.abs(v).toFixed(2)}`;
 }
 
 export function PnlChart({
@@ -71,13 +79,25 @@ export function PnlChart({
     const hairline = cssVar("--color-line", "rgba(255,255,255,0.08)");
     const mutedColor = cssVar("--color-muted", "#a89f9c");
     const surfaceColor = cssVar("--color-surface", "#221d1d");
+    const bgColor = cssVar("--color-bg", "#161313");
     const fgColor = cssVar("--color-fg", "#f2efed");
     const monoFont = cssVar("--font-mono", "ui-monospace, monospace");
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-    const data: unknown[] = points.map((p) => [p.t, p.usd]);
     const last = points[points.length - 1];
-    data[data.length - 1] = { value: [last.t, last.usd], symbol: "circle", symbolSize: 6 };
+
+    // Square mono pills the crosshair pins to both axes.
+    const pointerLabel = {
+      backgroundColor: surfaceColor,
+      borderColor: hairline,
+      borderWidth: 1,
+      borderRadius: 0,
+      shadowBlur: 0,
+      color: fgColor,
+      fontFamily: monoFont,
+      fontSize: 9,
+      padding: [3, 5] as [number, number],
+    };
 
     chart.setOption(
       {
@@ -92,9 +112,16 @@ export function PnlChart({
           axisLabel: {
             color: mutedColor,
             fontFamily: monoFont,
-            fontSize: 9,
+            fontSize: 10,
             hideOverlap: true,
             formatter: (value: number) => utcDay(value),
+          },
+          axisPointer: {
+            label: {
+              ...pointerLabel,
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              formatter: (p: any) => utcDay(Number(p.value)),
+            },
           },
         },
         yAxis: {
@@ -105,33 +132,45 @@ export function PnlChart({
           axisLabel: {
             color: mutedColor,
             fontFamily: monoFont,
-            fontSize: 9,
+            fontSize: 10,
             formatter: (v: number) => fmtUsd(v),
           },
-          splitLine: { lineStyle: { color: hairline, type: [2, 4] } },
+          splitLine: { lineStyle: { color: hairline, type: "solid" as const } },
+          axisPointer: {
+            label: {
+              ...pointerLabel,
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              formatter: (p: any) => fmtUsd(Number(p.value)),
+            },
+          },
         },
+        // Value lives in the RollingNumber readout above the chart; the
+        // tooltip only carries the scrubbed date.
         tooltip: {
           trigger: "axis",
-          axisPointer: { type: "line", lineStyle: { color: mutedColor, width: 1, opacity: 0.5 } },
+          axisPointer: {
+            type: "cross",
+            snap: true,
+            lineStyle: { color: mutedColor, width: 1, opacity: 0.45 },
+            crossStyle: { color: mutedColor, width: 1, opacity: 0.45 },
+          },
           backgroundColor: surfaceColor,
           borderColor: hairline,
           borderWidth: 1,
-          padding: [8, 10],
-          textStyle: { color: fgColor, fontFamily: monoFont, fontSize: 11 },
+          padding: [5, 7],
+          extraCssText: "border-radius:0;box-shadow:none;",
+          textStyle: { color: fgColor, fontFamily: monoFont, fontSize: 10 },
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           formatter: (params: any) => {
             const p = Array.isArray(params) ? params[0] : params;
             if (!p?.value) return "";
-            return (
-              `<div style="font-size:10px;letter-spacing:.1em;opacity:.6;">${utcDay(p.value[0])}</div>` +
-              `<div style="font-variant-numeric:tabular-nums;margin-top:2px;">${fmtUsdExact(p.value[1])}</div>`
-            );
+            return `<div style="font-size:10px;letter-spacing:.1em;opacity:.6;">${utcDay(p.value[0])}</div>`;
           },
         },
         series: [
           {
             type: "line" as const,
-            data,
+            data: points.map((p) => [p.t, p.usd]),
             color: lineColor,
             showSymbol: false,
             symbol: "circle",
@@ -148,6 +187,38 @@ export function PnlChart({
                 ],
               },
             },
+            // Latest print pinned to the axis, terminal price-tag style.
+            markLine: {
+              silent: true,
+              symbol: "none",
+              animation: false,
+              lineStyle: { color: lineColor, width: 1, type: [2, 3], opacity: 0.4 },
+              label: {
+                show: true,
+                position: "end" as const,
+                formatter: fmtUsd(last.usd),
+                backgroundColor: lineColor,
+                color: bgColor,
+                fontFamily: monoFont,
+                fontSize: 9,
+                fontWeight: 700 as const,
+                padding: [2, 4] as [number, number],
+              },
+              data: [{ yAxis: last.usd }],
+            },
+          },
+          // Live dot on the newest print — rippling unless motion is reduced.
+          {
+            type: "effectScatter" as const,
+            data: [[last.t, last.usd]],
+            color: lineColor,
+            symbolSize: 5,
+            rippleEffect: reducedMotion
+              ? { scale: 1, brushType: "stroke" as const }
+              : { scale: 2.6, period: 3.2, brushType: "stroke" as const },
+            silent: true,
+            tooltip: { show: false },
+            zlevel: 1,
           },
         ],
       },
@@ -161,7 +232,9 @@ export function PnlChart({
     if (!chart || !onHoverValue || points.length === 0) return;
 
     const onMove = (e: unknown) => {
-      const t = (e as { axesInfo?: { value?: number }[] }).axesInfo?.[0]?.value;
+      // Cross pointer reports both axes — take the time (x) axis entry.
+      const axes = (e as { axesInfo?: { axisDim?: string; value?: number }[] }).axesInfo;
+      const t = axes?.find((a) => a.axisDim === "x")?.value;
       if (typeof t !== "number") return;
       let nearest = points[0];
       for (const p of points) {
