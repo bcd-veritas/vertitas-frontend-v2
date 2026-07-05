@@ -3,28 +3,14 @@
 import Link from "next/link";
 import { Search } from "lucide-react";
 import { MonoLabel } from "../landing/ui/MonoLabel";
-import { useState, useEffect, useRef } from "react";
-import { useAccount, useBalance, useDisconnect } from "wagmi";
+import { useAccount, useBalance } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
+import { GradientAvatar } from "../profile/GradientAvatar";
 
 function ConnectButton() {
   const { address, isConnected } = useAccount();
   const { data: balance } = useBalance({ address });
   const { openConnectModal } = useConnectModal();
-  const { disconnect } = useDisconnect();
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [open]);
 
   if (!isConnected || !address) {
     return (
@@ -44,30 +30,16 @@ function ConnectButton() {
     : null;
 
   return (
-    <div ref={ref} className="relative shrink-0">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="pill pill-ghost !py-1.5 !px-4 text-xs font-mono uppercase tracking-wider inline-flex items-center gap-2"
-      >
-        {bal && (
-          <span className="text-accent tabular-nums normal-case">{bal}</span>
-        )}
-        {bal && <span aria-hidden="true" className="text-line">|</span>}
-        {short}
-      </button>
-      {open && (
-        <div className="absolute right-0 top-full mt-1 z-50 bg-surface border border-line rounded-lg shadow-lg overflow-hidden min-w-[120px]">
-          <button
-            type="button"
-            onClick={() => { disconnect(); setOpen(false); }}
-            className="w-full px-4 py-2.5 text-left font-mono text-[11px] uppercase tracking-[0.14em] text-muted hover:text-no hover:bg-no/5 transition-colors"
-          >
-            Disconnect
-          </button>
-        </div>
-      )}
-    </div>
+    <Link
+      href="/profile"
+      aria-label="Open profile"
+      className="pill pill-ghost !py-1.5 !px-4 text-xs font-mono uppercase tracking-wider inline-flex items-center gap-2 shrink-0"
+    >
+      <GradientAvatar seed={address} size={18} />
+      {bal && <span className="text-accent tabular-nums normal-case">{bal}</span>}
+      {bal && <span aria-hidden="true" className="text-line">|</span>}
+      {short}
+    </Link>
   );
 }
 
@@ -79,7 +51,7 @@ export function Topbar({
   onSearch?: (v: string) => void;
 }) {
   return (
-    <header className="sticky top-0 z-40 grid grid-cols-[1fr_auto] sm:grid-cols-[1fr_minmax(0,28rem)_1fr] items-center gap-x-4 sm:gap-x-6 px-5 sm:px-8 min-h-14 py-2 sm:py-0 border-b border-line bg-bg/70 backdrop-blur-sm">
+    <header className="sticky top-0 z-40 grid grid-cols-[1fr_auto] sm:grid-cols-[1fr_minmax(0,28rem)_1fr] items-center gap-x-4 sm:gap-x-6 px-3 sm:px-4 min-h-14 py-2 sm:py-0 border-b border-line bg-bg/70 backdrop-blur-sm">
       <Link
         href="/"
         className="justify-self-start font-pixel text-xl tracking-widest text-fg shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 rounded"

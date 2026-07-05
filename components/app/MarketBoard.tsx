@@ -112,7 +112,7 @@ export function MarketBoard({
   };
 
   return (
-    <main className="mx-auto max-w-7xl px-5 sm:px-8 py-8 w-full flex-1">
+    <main className="mx-auto max-w-7xl px-3 sm:px-4 py-8 w-full flex-1">
       {/* Controls */}
       <div className="flex flex-wrap items-center gap-x-6 gap-y-3 border-b border-line pb-0 mb-6">
         <div role="tablist" aria-label="Category" className="flex flex-wrap items-center">

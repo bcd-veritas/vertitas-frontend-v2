@@ -33,7 +33,7 @@ export function TerminalPage({
   return (
     <div className="dot-grid min-h-screen flex flex-col">
       <Topbar />
-      <main className="mx-auto max-w-7xl px-5 sm:px-8 py-6 w-full flex-1">
+      <main className="mx-auto max-w-7xl px-3 sm:px-4 py-6 w-full flex-1">
         {/* Title strip */}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-5">
           <Link
