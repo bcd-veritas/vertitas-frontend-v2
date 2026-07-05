@@ -48,13 +48,12 @@ export function ActivityTable({ rows }: { rows: ActivityRow[] }) {
                     {utcStamp(r.t)}
                   </td>
                   <td
-                    className={`px-3 py-2.5 font-mono text-[11px] tracking-[0.1em] ${
-                      r.action === "BOUGHT" ? "text-yes" : "text-no"
-                    }`}
+                    className={`px-3 py-2.5 font-mono text-[11px] tracking-widest ${r.action === "BOUGHT" ? "text-yes" : "text-no"
+                      }`}
                   >
                     {r.action}
                   </td>
-                  <td className="px-3 py-2.5 text-fg/90 max-w-[240px] truncate">{r.market}</td>
+                  <td className="px-3 py-2.5 text-fg/90 max-w-60 truncate">{r.market}</td>
                   <td className="px-3 py-2.5 text-fg/70 whitespace-nowrap">{r.outcome}</td>
                   <td className="px-3 py-2.5 font-mono text-[11px] tabular-nums text-right text-fg/75">
                     {r.shares.toLocaleString("en-US")}

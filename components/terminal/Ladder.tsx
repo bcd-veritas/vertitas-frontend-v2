@@ -31,10 +31,10 @@ function LadderRow({
   const color = side === "bid" ? "text-yes" : "text-no";
   const width = maxCum > 0n ? Number((cum * 100n) / maxCum) : 0;
   return (
-    <div className="relative grid grid-cols-[56px_1fr_1fr] items-center gap-2 px-5 py-[5px] font-mono text-[11px] tabular-nums">
+    <div className="relative grid grid-cols-[56px_1fr_1fr] items-center gap-2 px-5 py-1.25 font-mono text-[11px] tabular-nums">
       <span
         aria-hidden="true"
-        className={`absolute inset-y-[3px] right-0 ${color} opacity-[0.4]`}
+        className={`absolute inset-y-0.75 right-0 ${color} opacity-[0.4]`}
         style={{ ...HATCH, width: `${width}%` }}
       />
       <span className={color}>{centsLabel(level.price)}</span>

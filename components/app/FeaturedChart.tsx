@@ -33,7 +33,7 @@ export function FeaturedChart({
 
   if (chartSeries.length === 0) {
     return (
-      <div className="h-[260px] flex items-center justify-center font-mono text-[11px] uppercase tracking-[0.18em] text-muted">
+      <div className="h-65 flex items-center justify-center font-mono text-[11px] uppercase tracking-[0.18em] text-muted">
         no price history yet
       </div>
     );

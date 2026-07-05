@@ -17,7 +17,7 @@ function ConnectButton() {
       <button
         type="button"
         onClick={openConnectModal}
-        className="pill pill-ghost !py-1.5 !px-4 text-xs font-mono uppercase tracking-wider shrink-0"
+        className="pill pill-ghost py-1.5! px-4! text-xs font-mono uppercase tracking-wider shrink-0"
       >
         Connect
       </button>
@@ -33,7 +33,7 @@ function ConnectButton() {
     <Link
       href="/profile"
       aria-label="Open profile"
-      className="pill pill-ghost !py-1.5 !px-4 text-xs font-mono uppercase tracking-wider inline-flex items-center gap-2 shrink-0"
+      className="pill pill-ghost py-1.5! px-4! text-xs font-mono uppercase tracking-wider inline-flex items-center gap-2 shrink-0"
     >
       <GradientAvatar seed={address} size={18} />
       {bal && <span className="text-accent tabular-nums normal-case">{bal}</span>}
@@ -61,7 +61,7 @@ export function Topbar({
 
       {/* Center column — search sits dead-center of the bar */}
       {onSearch ? (
-        <div className="order-last col-span-2 sm:order-none sm:col-span-1 mt-2 sm:mt-0 flex items-center gap-2 w-full border border-line rounded-lg px-3 py-1.5 focus-within:border-accent/40 transition-colors">
+        <div className="order-last col-span-2 sm:order-0 sm:col-span-1 mt-2 sm:mt-0 flex items-center gap-2 w-full border border-line rounded-lg px-3 py-1.5 focus-within:border-accent/40 transition-colors">
           <Search size={13} className="text-muted shrink-0" aria-hidden="true" />
           <input
             value={search ?? ""}

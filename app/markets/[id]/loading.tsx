@@ -6,7 +6,7 @@ export default function MarketLoading() {
         <div className="h-6 w-64 rounded bg-surface/70 animate-pulse mb-6" />
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_380px] gap-5">
           <div className="flex flex-col gap-5">
-            <div className="h-[300px] rounded-xl bg-surface/70 border border-line animate-pulse" />
+            <div className="h-75 rounded-xl bg-surface/70 border border-line animate-pulse" />
             <div className="h-72 rounded-xl bg-surface/70 border border-line animate-pulse" />
           </div>
           <div className="flex flex-col gap-5">

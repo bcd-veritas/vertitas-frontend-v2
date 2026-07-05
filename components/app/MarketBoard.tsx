@@ -131,7 +131,7 @@ export function MarketBoard({
                 {on && (
                   <span
                     aria-hidden="true"
-                    className={`absolute -bottom-px left-2 right-2 h-[2px] rounded-full ${catColor(c).bg}`}
+                    className={`absolute -bottom-px left-2 right-2 h-0.5 rounded-full ${catColor(c).bg}`}
                   />
                 )}
               </button>

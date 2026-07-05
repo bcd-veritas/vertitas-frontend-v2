@@ -147,7 +147,6 @@ export async function getOrderBook(tokenId: string): Promise<OrderBookData> {
     if (!res.ok) return { bids: [], asks: [] };
 
     const data = await res.json();
-    console.log(data);
     return { bids: data.bids ?? [], asks: data.asks ?? [] };
   } catch {
     return { bids: [], asks: [] };

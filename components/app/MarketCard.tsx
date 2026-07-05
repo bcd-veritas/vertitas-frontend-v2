@@ -43,15 +43,14 @@ function OutcomeRow({
             &gt;
           </span>
         )}
-        <span className="text-sm text-fg truncate max-w-[9rem] inline-block align-bottom">{label}</span>
+        <span className="text-sm text-fg truncate max-w-36 inline-block align-bottom">{label}</span>
       </span>
       {/* dotted leader */}
-      <span aria-hidden="true" className="flex-1 border-b border-dotted border-line mx-3 translate-y-[3px]" />
+      <span aria-hidden="true" className="flex-1 border-b border-dotted border-line mx-3 translate-y-0.75" />
       <span className="font-mono text-[11px] text-muted tabular-nums shrink-0">{mult}</span>
       <span
-        className={`font-mono text-xl font-bold tabular-nums w-14 text-right shrink-0 ${
-          pct != null ? color.text : "text-muted"
-        }`}
+        className={`font-mono text-xl font-bold tabular-nums w-14 text-right shrink-0 ${pct != null ? color.text : "text-muted"
+          }`}
       >
         {pctText}
       </span>
@@ -66,7 +65,7 @@ function OutcomeRow({
         {pct != null && (
           <span
             aria-hidden="true"
-            className={`absolute left-0 -bottom-0.5 h-[2px] rounded-full ${color.bar} opacity-40`}
+            className={`absolute left-0 -bottom-0.5 h-0.5 rounded-full ${color.bar} opacity-40`}
             style={{ width: `${barWidth}%` }}
           />
         )}
@@ -82,7 +81,7 @@ function OutcomeRow({
       {row}
       <span
         aria-hidden="true"
-        className={`absolute left-0 -bottom-0.5 h-[2px] rounded-full ${color.bar} group-hover/row:brightness-125 transition-all`}
+        className={`absolute left-0 -bottom-0.5 h-0.5 rounded-full ${color.bar} group-hover/row:brightness-125 transition-all`}
         style={{ width: `${barWidth}%` }}
       />
     </Link>
@@ -115,9 +114,8 @@ export function MarketCard({
 
   return (
     <article
-      className={`market-card group relative flex flex-col bg-surface/70 border border-line rounded-xl overflow-hidden transition-colors hover:border-accent/25 ${
-        live ? "" : "opacity-60 saturate-50"
-      }`}
+      className={`market-card group relative flex flex-col bg-surface/70 border border-line rounded-xl overflow-hidden transition-colors hover:border-accent/25 ${live ? "" : "opacity-60 saturate-50"
+        }`}
     >
       {/* Probability rail — split at the leading outcome's share of the top-2 */}
       <div

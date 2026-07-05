@@ -69,7 +69,7 @@ export function Resolution() {
             >
               {/* Shared line + this stage's dot */}
               <div className="relative h-3" aria-hidden="true">
-                <span className="absolute top-[5px] left-0 right-0 h-px bg-line" />
+                <span className="absolute top-1.25 left-0 right-0 h-px bg-line" />
                 <span
                   className={`lifecycle-dot absolute -left-1 top-0 w-2.5 h-2.5 rounded-full border ${i === STAGES.length - 1
                     ? "bg-accent border-accent"

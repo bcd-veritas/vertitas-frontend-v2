@@ -43,7 +43,7 @@ export function MetricBlocks({
       {BLOCKS.map((b, i) => (
         <div
           key={b.eyebrow}
-          className="relative p-6 min-h-[220px] flex flex-col overflow-hidden"
+          className="relative p-6 min-h-55 flex flex-col overflow-hidden"
           style={{ background: b.bg, color: "var(--color-bg)" }}
         >
           <span

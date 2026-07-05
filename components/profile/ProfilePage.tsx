@@ -36,7 +36,7 @@ export function ProfilePage({ markets }: { markets: ApiMarket[] }) {
           <button
             type="button"
             onClick={openConnectModal}
-            className="pill pill-solid !py-2 !px-6 text-xs font-mono uppercase tracking-wider"
+            className="pill pill-solid py-2! px-6! text-xs font-mono uppercase tracking-wider"
           >
             Connect
           </button>

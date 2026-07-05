@@ -45,7 +45,7 @@ export function HeroValue({
         {/* Giant display headline (reference: "THE ARCHITECTURE OF YOUR WEALTH.")
             mt-auto pins the content block to the bottom of the 80vh band. */}
         <h1
-          className="mt-auto pt-10 font-semibold uppercase text-fg break-words leading-[0.95] tracking-tight"
+          className="mt-auto pt-10 font-semibold uppercase text-fg wrap-break-word leading-[0.95] tracking-tight"
           style={{ fontSize: "clamp(3rem, 9vw, 6.5rem)" }}
         >
           {title}.
@@ -65,7 +65,7 @@ export function HeroValue({
         </p>
 
         <p
-          className={`mt-5 font-mono text-xs tracking-[0.1em] tabular-nums ${up ? "text-yes" : "text-no"}`}
+          className={`mt-5 font-mono text-xs tracking-widest tabular-nums ${up ? "text-yes" : "text-no"}`}
         >
           {sign}
           <CountUp value={Math.abs(pnlCents) / 100} prefix="$" decimals={2} /> ({sign}

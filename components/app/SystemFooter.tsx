@@ -36,8 +36,8 @@ function ColHeading({ children }: { children: React.ReactNode }) {
 function LeaderRow({ k, v }: { k: string; v: string }) {
   return (
     <div className="flex items-baseline gap-2 py-1 font-mono text-[11px]">
-      <span className="text-muted uppercase tracking-[0.1em] shrink-0">{k}</span>
-      <span aria-hidden="true" className="flex-1 border-b border-dotted border-line translate-y-[-2px]" />
+      <span className="text-muted uppercase tracking-widest shrink-0">{k}</span>
+      <span aria-hidden="true" className="flex-1 border-b border-dotted border-line -translate-y-0.5" />
       <span className="text-fg/80 tabular-nums shrink-0">{v}</span>
     </div>
   );
@@ -48,7 +48,7 @@ function LoadBar({ label, pct }: { label: string; pct: number }) {
   return (
     <div className="py-1.5">
       <div className="flex justify-between font-mono text-[11px] mb-1">
-        <span className="text-muted uppercase tracking-[0.1em]">{label}</span>
+        <span className="text-muted uppercase tracking-widest">{label}</span>
         <span className="text-fg/80 tabular-nums">{pct}%</span>
       </div>
       <div className="h-2 w-full border-b border-line/60 relative">

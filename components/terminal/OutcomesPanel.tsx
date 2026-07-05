@@ -133,15 +133,14 @@ function Expansion({ row }: { row: Row }) {
               role="tab"
               aria-selected={on}
               onClick={() => setTab(id)}
-              className={`relative px-3 py-2 font-mono text-[11px] uppercase tracking-[0.14em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 rounded-t ${
-                on ? "text-fg" : "text-muted hover:text-fg/80"
-              }`}
+              className={`relative px-3 py-2 font-mono text-[11px] uppercase tracking-[0.14em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 rounded-t ${on ? "text-fg" : "text-muted hover:text-fg/80"
+                }`}
             >
               {label}
               {on && (
                 <span
                   aria-hidden="true"
-                  className="absolute -bottom-px left-2 right-2 h-[2px] bg-accent rounded-full"
+                  className="absolute -bottom-px left-2 right-2 h-0.5 bg-accent rounded-full"
                 />
               )}
             </button>
@@ -219,7 +218,7 @@ export function OutcomesPanel({
                     setOpenKey(open ? null : row.outcome.id);
                   }
                 }}
-                className="w-full flex items-center gap-3 px-5 py-3 text-left cursor-pointer hover:bg-fg/[0.02] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+                className="w-full flex items-center gap-3 px-5 py-3 text-left cursor-pointer hover:bg-fg/2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
               >
                 <span
                   aria-hidden="true"
