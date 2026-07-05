@@ -1,0 +1,89 @@
+// Mirrors veritas-middleware's serialized GET /markets shapes.
+export type MarketStatus = "ACTIVE" | "ENDED" | "RESOLVED" | "CANCELLED";
+
+export type ApiOutcome = {
+  id: string;
+  marketId: string;
+  index: number;
+  tokenId: string;
+  label: string;
+  /** Fixed-point price (1e8 == 100%), or null when the book has no price. */
+  price: string | null;
+};
+
+export type ApiMarket = {
+  id: string;
+  title: string;
+  description: string | null;
+  category: string | null;
+  isFeatured: boolean;
+  /** USDC volume as a 6-decimals bigint string (middleware serializes BigInt) */
+  volume: string;
+  /** ISO datetime */
+  endTime: string;
+  status: MarketStatus;
+  feeBps: number;
+  createdAt: string;
+  outcomes: ApiOutcome[];
+  resolutionSource: string;
+  conditionId: string | null;
+  tickSize: string; // fixed-point, "10000" = 1¢
+  minOrderSize: string; // fixed-point shares, "1000000" = 1 share
+};
+
+// featured part
+export type FeaturedChartPoint = { t: string; price: string };
+export type FeaturedChartSeries = {
+  outcomeIndex: number;
+  label: string;
+  points: FeaturedChartPoint[];
+};
+
+export type CommentAuthor = { username: string | null; walletAddress: string };
+export type FeaturedComment = {
+  id: string;
+  content: string;
+  likesCount: number;
+  createdAt: string;
+  user: CommentAuthor | null;
+  replies: FeaturedComment[];
+};
+
+export type FeaturedMarket = ApiMarket & {
+  chart: FeaturedChartSeries[];
+  comments: FeaturedComment[];
+};
+
+export type OutcomeDTO = {
+  id: string;
+  marketId: string;
+  index: number;
+  tokenId: string;
+  label: string;
+  createdAt: string;
+  updatedAt: string;
+  price?: string | null;
+};
+
+export type MarketDTO = {
+  id: string;
+  title: string;
+  description: string | null;
+  category: string | null;
+  isFeatured: boolean;
+
+  volume: string;
+
+  endTime: string;
+  createdAt: string;
+
+  status: MarketStatus;
+  feeBps: number;
+
+  resolutionSource: string | null;
+  conditionId: string | null;
+  tickSize: string;
+  minOrderSize: string;
+
+  outcomes: OutcomeDTO[];
+};

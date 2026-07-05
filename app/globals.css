@@ -1,26 +1,78 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-bg: #1a1616;
+  --color-surface: #221d1d;
+  --color-accent: #f6dcd4;
+  --color-fg: #f2efed;
+  --color-muted: #a89f9c;
+  --color-line: rgba(255, 255, 255, 0.08);
+  --color-yes: #7fae8b;
+  --color-no: #c97a6d;
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --font-pixel: var(--font-handjet);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  overflow-x: hidden;
+}
+
+::selection {
+  background: var(--color-accent);
+  color: var(--color-bg);
+}
+
+/* Faint dot grid over the page background */
+.dot-grid {
+  background-image: radial-gradient(rgba(246, 220, 212, 0.07) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+/* Pill buttons */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 9999px;
+  padding: 0.8rem 1.75rem;
+  font-size: 0.9rem;
+  font-weight: 550;
+  transition: opacity 0.2s ease, background-color 0.2s ease;
+}
+.pill-solid {
+  background: var(--color-accent);
+  color: var(--color-bg);
+}
+.pill-solid:hover {
+  opacity: 0.85;
+}
+.pill-ghost {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--color-fg);
+  border: 1px solid var(--color-line);
+}
+.pill-ghost:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Dashboard ticker marquee — track is duplicated; -50% loops seamlessly */
+@keyframes ticker-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.ticker-track {
+  animation: ticker-scroll 45s linear infinite;
+}
+.ticker-track:hover {
+  animation-play-state: paused;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ticker-track {
+    animation: none;
+  }
 }
