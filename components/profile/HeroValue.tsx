@@ -1,5 +1,6 @@
 import { ArrowUpRight } from "lucide-react";
 import { InstanceCloud } from "./InstanceCloud";
+import { CountUp } from "./CountUp";
 
 /**
  * The Theradime hero, dark-translated and full-bleed (no panel chrome):
@@ -20,16 +21,10 @@ export function HeroValue({
   pnlCents: number;
   winRatePct: number;
 }) {
-  const dollars = Math.floor(valueCents / 100).toLocaleString("en-US");
-  const cents = String(valueCents % 100).padStart(2, "0");
   const up = pnlCents >= 0;
   const baseCents = valueCents - pnlCents;
   const pnlPct = baseCents > 0 ? (pnlCents / baseCents) * 100 : 0;
   const sign = up ? "+" : "−";
-  const pnlUsd = (Math.abs(pnlCents) / 100).toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
 
   return (
     <section
@@ -42,7 +37,9 @@ export function HeroValue({
         {/* Corner eyebrows, exactly like the reference's stat callouts. */}
         <div className="flex items-baseline justify-between font-mono text-[11px] uppercase tracking-[0.14em] text-muted">
           <span>portfolio // all time</span>
-          <span className="tabular-nums">win rate {Math.round(winRatePct)}%</span>
+          <span className="tabular-nums">
+            win rate <CountUp value={Math.round(winRatePct)} suffix="%" />
+          </span>
         </div>
 
         {/* Giant display headline (reference: "THE ARCHITECTURE OF YOUR WEALTH.")
@@ -60,18 +57,19 @@ export function HeroValue({
           style={{ fontSize: "clamp(4.5rem, 14vw, 11rem)" }}
         >
           <span style={{ WebkitTextStroke: "1.5px var(--color-fg)", color: "transparent" }}>
-            ${dollars}
+            <CountUp value={Math.floor(valueCents / 100)} prefix="$" />
           </span>
           <span className="text-fg" style={{ fontSize: "0.42em" }}>
-            .{cents}
+            <CountUp value={valueCents % 100} prefix="." pad={2} />
           </span>
         </p>
 
         <p
           className={`mt-5 font-mono text-xs tracking-[0.1em] tabular-nums ${up ? "text-yes" : "text-no"}`}
         >
-          {sign}${pnlUsd} ({sign}
-          {Math.abs(pnlPct).toFixed(1)}%) ALL TIME · SIM.DATA
+          {sign}
+          <CountUp value={Math.abs(pnlCents) / 100} prefix="$" decimals={2} /> ({sign}
+          <CountUp value={Math.abs(pnlPct)} decimals={1} suffix="%" />) ALL TIME · SIM.DATA
         </p>
 
         {/* Reference's "BEGIN ANALYSIS ↗" — ours is the inert Deposit CTA. */}

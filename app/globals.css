@@ -76,31 +76,3 @@ body {
     animation: none;
   }
 }
-
-
-/* Odometer readout — slot-reel digit slides (rise = down, fall = up) */
-@keyframes odo-down {
-  from { transform: translateY(-1em); }
-  to { transform: translateY(0); }
-}
-@keyframes odo-up {
-  from { transform: translateY(0); }
-  to { transform: translateY(-1em); }
-}
-.odo-reel-down {
-  display: block;
-  animation: odo-down 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-.odo-reel-up {
-  display: block;
-  animation: odo-up 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-@media (prefers-reduced-motion: reduce) {
-  .odo-reel-down,
-  .odo-reel-up {
-    animation: none;
-  }
-  .odo-reel-up {
-    transform: translateY(-1em);
-  }
-}

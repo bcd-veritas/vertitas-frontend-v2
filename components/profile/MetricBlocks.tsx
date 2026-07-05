@@ -1,3 +1,5 @@
+import { CountUp } from "./CountUp";
+
 /**
  * The reference's three solid color-block step cards: flush edge-to-edge
  * thirds, square corners, near-black text on the app's own theme tokens.
@@ -31,9 +33,9 @@ export function MetricBlocks({
   winRatePct: number;
 }) {
   const values = [
-    `$${Math.round(volumeTradedCents / 100).toLocaleString("en-US")}`,
-    `${marketsTraded}`,
-    `${Math.round(winRatePct)}%`,
+    { value: Math.round(volumeTradedCents / 100), prefix: "$" },
+    { value: marketsTraded },
+    { value: Math.round(winRatePct), suffix: "%" },
   ];
 
   return (
@@ -55,9 +57,10 @@ export function MetricBlocks({
             {b.eyebrow}
           </span>
           <span className="mt-2 text-base font-medium opacity-85 pr-10 leading-snug">{b.desc}</span>
-          <span className="mt-auto pt-6 text-6xl sm:text-7xl font-semibold tabular-nums leading-none">
-            {values[i]}
-          </span>
+          <CountUp
+            {...values[i]}
+            className="mt-auto pt-6 text-6xl sm:text-7xl font-semibold tabular-nums leading-none"
+          />
         </div>
       ))}
     </div>

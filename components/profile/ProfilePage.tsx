@@ -13,7 +13,7 @@ import { HeroValue } from "./HeroValue";
 import { PnlChart } from "../charts/PnlChart";
 import { MetricBlocks } from "./MetricBlocks";
 import { ActivityTable } from "./ActivityTable";
-import { Odometer } from "./Odometer";
+import { RollingNumber } from "./RollingNumber";
 
 export function ProfilePage({ markets }: { markets: ApiMarket[] }) {
   const { address, isConnected } = useAccount();
@@ -56,10 +56,6 @@ export function ProfilePage({ markets }: { markets: ApiMarket[] }) {
   const latestUsd = profile.pnlSeries[profile.pnlSeries.length - 1]?.usd ?? 0;
   const readoutUsd = hoverUsd ?? latestUsd;
   const readoutUp = readoutUsd >= 0;
-  const pnlReadout = `${readoutUp ? "+" : "−"}$${Math.abs(readoutUsd).toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -92,7 +88,7 @@ export function ProfilePage({ markets }: { markets: ApiMarket[] }) {
               disconnect();
               router.push("/home");
             }}
-            className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted hover:text-no transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 rounded"
+            className="font-mono text-[11px] uppercase tracking-[0.14em] text-no transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 rounded"
           >
             Disconnect ↗
           </button>
@@ -120,11 +116,13 @@ export function ProfilePage({ markets }: { markets: ApiMarket[] }) {
                 PNL
               </h2>
               {/* Scrub readout: hovered value, else the latest print. */}
-              <Odometer
-                value={pnlReadout}
-                className={`mt-3 font-mono text-3xl sm:text-4xl font-semibold tabular-nums ${
-                  readoutUp ? "text-yes" : "text-no"
-                }`}
+              <RollingNumber
+                value={readoutUsd}
+                signed
+                currency
+                decimals={2}
+                className={`mt-3 font-mono text-3xl sm:text-4xl font-semibold ${readoutUp ? "text-yes" : "text-no"
+                  }`}
               />
             </div>
             <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted">
