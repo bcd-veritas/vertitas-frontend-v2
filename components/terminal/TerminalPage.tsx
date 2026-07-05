@@ -12,7 +12,7 @@ import { RulesPanel } from "./RulesPanel";
 import { RelatedMarkets } from "./RelatedMarkets";
 import { ComingSoonPanel } from "./ComingSoon";
 import { MarketComments } from "./MarketComments";
-import { OrderBook } from "./OrderBook";
+import { OutcomesPanel } from "./OutcomesPanel";
 import { PriceChart } from "./PriceChart";
 
 export function TerminalPage({
@@ -60,7 +60,7 @@ export function TerminalPage({
           {/* Main column */}
           <div className="flex flex-col gap-5 min-w-0">
             <PriceChart outcomes={market.outcomes} series={series} />
-            <OrderBook outcomes={market.outcomes} books={books} />
+            <OutcomesPanel outcomes={market.outcomes} books={books} series={series} />
             <MarketComments marketId={market.id} />
             <RelatedMarkets markets={related} />
           </div>
