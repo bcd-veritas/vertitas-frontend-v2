@@ -139,7 +139,7 @@ export function FeaturedPlate({ markets }: { markets: FeaturedMarket[] }) {
   return (
     <section
       aria-label="Featured markets"
-      className="mx-auto max-w-7xl px-5 sm:px-8 pt-8 w-full"
+      className="mx-auto max-w-7xl px-3 sm:px-4 pt-8 w-full"
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
     >

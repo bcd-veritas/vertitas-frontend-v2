@@ -157,7 +157,7 @@ export function SystemFooter({ markets }: { markets: ApiMarket[] }) {
     <footer className="mt-14 border-t border-line" aria-label="System status">
       {/* Band: big count + memory matrix */}
       <div className="bg-[#141010] border-b border-line">
-        <div className="mx-auto max-w-7xl px-5 sm:px-8 py-8 flex flex-col md:flex-row md:items-center gap-8">
+        <div className="mx-auto max-w-7xl px-3 sm:px-4 py-8 flex flex-col md:flex-row md:items-center gap-8">
           <div>
             <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-2">
               markets.online
@@ -177,7 +177,7 @@ export function SystemFooter({ markets }: { markets: ApiMarket[] }) {
 
       {/* Meta strip */}
       <div className="border-b border-line">
-        <div className="mx-auto max-w-7xl px-5 sm:px-8 py-3 grid grid-cols-2 sm:grid-cols-3 gap-4 font-mono text-[11px]">
+        <div className="mx-auto max-w-7xl px-3 sm:px-4 py-3 grid grid-cols-2 sm:grid-cols-3 gap-4 font-mono text-[11px]">
           <div>
             <p className="text-[10px] uppercase tracking-[0.18em] text-muted">system operation</p>
             <p className="text-fg/80 mt-0.5">VERITAS // MARKETS</p>
@@ -196,7 +196,7 @@ export function SystemFooter({ markets }: { markets: ApiMarket[] }) {
       </div>
 
       {/* Data columns */}
-      <div className="mx-auto max-w-7xl px-5 sm:px-8 py-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-10 gap-y-8">
+      <div className="mx-auto max-w-7xl px-3 sm:px-4 py-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-10 gap-y-8">
         <div>
           <ColHeading>markets // index</ColHeading>
           {catRows.map(([cat, { count }]) => (
@@ -231,7 +231,7 @@ export function SystemFooter({ markets }: { markets: ApiMarket[] }) {
       </div>
 
       <div className="border-t border-line">
-        <div className="mx-auto max-w-7xl px-5 sm:px-8 py-4 flex flex-wrap justify-between gap-3 font-mono text-[10px] uppercase tracking-[0.18em] text-muted">
+        <div className="mx-auto max-w-7xl px-3 sm:px-4 py-4 flex flex-wrap justify-between gap-3 font-mono text-[10px] uppercase tracking-[0.18em] text-muted">
           <span>© 2026 veritas — prediction markets</span>
           <span>built on-chain // settled by truth</span>
         </div>
