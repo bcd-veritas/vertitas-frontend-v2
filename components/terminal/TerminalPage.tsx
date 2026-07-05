@@ -28,6 +28,8 @@ export function TerminalPage({
 }) {
   const live = market.status === "ACTIVE";
 
+  console.log(market)
+
   return (
     <div className="dot-grid min-h-screen flex flex-col">
       <Topbar />

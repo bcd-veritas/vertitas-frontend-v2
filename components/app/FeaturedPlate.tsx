@@ -5,11 +5,10 @@ import Link from "next/link";
 import { ArrowUpRight, ChevronLeft, ChevronRight } from "lucide-react";
 import type { FeaturedMarket } from "@/lib/markets/types";
 import { closesLabel, formatVol, rankedOutcomes } from "@/lib/markets/format";
+import { CHART_PALETTE } from "../charts/palette";
 import { CategoryIcon } from "./categoryIcon";
 import { MonoLabel } from "../landing/ui/MonoLabel";
 import { FeaturedChart } from "./FeaturedChart";
-
-const PALETTE = ["#7FB3FF", "#F6C177", "#8CE0B0", "#E58F9E"];
 
 function shortDate(iso: string): string {
   return new Date(iso)
@@ -21,7 +20,7 @@ function FeaturedCard({ market }: { market: FeaturedMarket }) {
   const ranked = rankedOutcomes(market);
   const top = ranked.slice(0, 4);
   const colorByOutcome = new Map<number, string>();
-  ranked.forEach((r, i) => colorByOutcome.set(r.outcome.index, PALETTE[i % PALETTE.length]));
+  ranked.forEach((r, i) => colorByOutcome.set(r.outcome.index, CHART_PALETTE[i % CHART_PALETTE.length]));
   const colorOf = (idx: number) => colorByOutcome.get(idx) ?? "var(--color-muted)";
   const comments = market.comments.slice(0, 3);
   const href = `/markets/${market.id}`;
@@ -100,7 +99,11 @@ function FeaturedCard({ market }: { market: FeaturedMarket }) {
               </span>
             ))}
           </div>
-          <FeaturedChart series={market.chart} colorOf={colorOf} />
+          <FeaturedChart
+            series={market.chart}
+            topIndexes={top.map((r) => r.outcome.index)}
+            colorOf={colorOf}
+          />
         </div>
       </div>
 
