@@ -2,14 +2,13 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
-import type { ApiOutcome, OrderBookData, PricePoint } from "@/lib/markets/types";
 import { toCents } from "@/lib/markets/format";
 import { ProbabilityChart, type ChartSeries } from "../charts/ProbabilityChart";
-import { CHART_PALETTE } from "../charts/palette";
+import { MonoLabel } from "../landing/ui/MonoLabel";
 import { ComingSoonBody } from "./ComingSoon";
 import { Ladder } from "./Ladder";
-
-const EMPTY_BOOK: OrderBookData = { bids: [], asks: [] };
+import { Frame } from "./Frame";
+import type { RankedRow } from "./rank";
 
 /**
  * Animated expand/collapse via the grid-rows 0fr→1fr trick (animates to auto
@@ -37,60 +36,6 @@ function Collapsible({ open, children }: { open: boolean; children: ReactNode })
   );
 }
 
-type Row = {
-  outcome: ApiOutcome;
-  book: OrderBookData;
-  /** Oldest-first trade history for this outcome. */
-  history: PricePoint[];
-  /** Probability 0–100: latest trade, else book midpoint, else null. */
-  pct: number | null;
-  /** Cost to buy YES = best ask (whole cents), null when no asks. */
-  yesCents: number | null;
-  /** Cost to buy NO = 100 − best bid (whole cents), null when no bids. */
-  noCents: number | null;
-  /** Rank color — matches the main chart's palette for the top-4. */
-  color: string;
-};
-
-function deriveRows(
-  outcomes: ApiOutcome[],
-  books: OrderBookData[],
-  series: PricePoint[][],
-): Row[] {
-  const rows = outcomes.map((outcome, i): Row => {
-    const book = books[i] ?? EMPTY_BOOK;
-    const history = series[i] ?? [];
-    const bestBid = book.bids[0] ? toCents(book.bids[0].price) : null;
-    const bestAsk = book.asks[0] ? toCents(book.asks[0].price) : null;
-    const lastTrade =
-      history.length > 0 ? toCents(history[history.length - 1].price) : null;
-    const pct =
-      lastTrade ?? (bestBid != null && bestAsk != null ? (bestBid + bestAsk) / 2 : null);
-
-    return {
-      outcome,
-      book,
-      history,
-      pct,
-      yesCents: bestAsk != null ? Math.round(bestAsk) : null,
-      noCents: bestBid != null ? Math.round(100 - bestBid) : null,
-      color: "", // assigned after sorting, by rank
-    };
-  });
-
-  rows.sort((a, b) => {
-    if (a.pct == null && b.pct == null) return a.outcome.index - b.outcome.index;
-    if (a.pct == null) return 1;
-    if (b.pct == null) return -1;
-    return b.pct - a.pct || a.outcome.index - b.outcome.index;
-  });
-  rows.forEach((row, rank) => {
-    row.color = rank < CHART_PALETTE.length ? CHART_PALETTE[rank] : "var(--color-muted)";
-  });
-
-  return rows;
-}
-
 type TabId = "book" | "graph" | "resolution";
 const TABS: { id: TabId; label: string }[] = [
   { id: "book", label: "Order Book" },
@@ -99,7 +44,7 @@ const TABS: { id: TabId; label: string }[] = [
 ];
 
 /** Mounted only while its row is open — closing resets the tab to Order Book. */
-function Expansion({ row }: { row: Row }) {
+function Expansion({ row }: { row: RankedRow }) {
   const [tab, setTab] = useState<TabId>("book");
 
   const graphSeries = useMemo<ChartSeries[]>(
@@ -119,7 +64,10 @@ function Expansion({ row }: { row: Row }) {
   const hasGraph = graphSeries[0].points.length >= 2;
 
   return (
-    <div className="border-t border-line/50 bg-bg/30">
+    <div
+      className="border-t border-line/50 border-l-2 bg-bg/30"
+      style={{ borderLeftColor: row.color }}
+    >
       <div
         role="tablist"
         aria-label="Outcome detail"
@@ -133,14 +81,15 @@ function Expansion({ row }: { row: Row }) {
               role="tab"
               aria-selected={on}
               onClick={() => setTab(id)}
-              className={`relative px-3 py-2 font-mono text-[11px] uppercase tracking-[0.14em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 rounded-t ${on ? "text-fg" : "text-muted hover:text-fg/80"
+              className={`relative px-3 py-2 font-mono text-[11px] uppercase tracking-[0.14em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${on ? "text-fg" : "text-muted hover:text-fg/80"
                 }`}
             >
               {label}
               {on && (
                 <span
                   aria-hidden="true"
-                  className="absolute -bottom-px left-2 right-2 h-0.5 bg-accent rounded-full"
+                  className="absolute -bottom-px left-2 right-2 h-0.5"
+                  style={{ background: row.color }}
                 />
               )}
             </button>
@@ -169,20 +118,20 @@ function Expansion({ row }: { row: Row }) {
 export type TradeSelection = { outcomeId: string; side: "yes" | "no" };
 
 export function OutcomesPanel({
-  outcomes,
-  books,
-  series,
+  rows,
   selection,
   onSelect,
+  openKey,
+  onOpenChange,
 }: {
-  outcomes: ApiOutcome[];
-  books: OrderBookData[];
-  series: PricePoint[][];
+  /** Pre-ranked, pre-colored rows shared with the rest of the page. */
+  rows: RankedRow[];
   selection: TradeSelection | null;
   onSelect: (s: TradeSelection | null) => void;
+  /** Controlled expansion — the page retints hero/ticket to the open row. */
+  openKey: string | null;
+  onOpenChange: (key: string | null) => void;
 }) {
-  const [openKey, setOpenKey] = useState<string | null>(null);
-  const rows = useMemo(() => deriveRows(outcomes, books, series), [outcomes, books, series]);
 
   const toggleSelection = (outcomeId: string, side: "yes" | "no") =>
     onSelect(
@@ -192,25 +141,13 @@ export function OutcomesPanel({
     );
 
   return (
-    <section
-      className="relative bg-surface/70 border border-line rounded-xl overflow-hidden"
-      aria-label="Outcomes"
+    <Frame
+      label="OUTCOMES"
+      ariaLabel="Outcomes"
+      right={<MonoLabel>{`${rows.length} outcomes // tap to expand`}</MonoLabel>}
     >
-      <span
-        aria-hidden="true"
-        className="absolute top-2.5 right-3 font-mono text-muted/40 text-xs select-none"
-      >
-        +
-      </span>
-      <div className="flex flex-wrap items-center justify-between gap-2 px-5 pt-4 pb-3">
-        <h2 className="font-pixel text-xl tracking-wide text-fg">OUTCOMES</h2>
-        <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted">
-          {rows.length} outcomes // tap to expand
-        </span>
-      </div>
-
-      <div className="divide-y divide-line/50 border-t border-line/50">
-        {rows.map((row) => {
+      <div className="divide-y divide-line/50 border-t border-line/50 mt-1">
+        {rows.map((row, rank) => {
           const open = openKey === row.outcome.id;
           return (
             <div key={row.outcome.id}>
@@ -219,22 +156,29 @@ export function OutcomesPanel({
                 role="button"
                 tabIndex={0}
                 aria-expanded={open}
-                onClick={() => setOpenKey(open ? null : row.outcome.id)}
+                onClick={() => onOpenChange(open ? null : row.outcome.id)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
-                    setOpenKey(open ? null : row.outcome.id);
+                    onOpenChange(open ? null : row.outcome.id);
                   }
                 }}
-                className="w-full flex items-center gap-3 px-5 py-5 text-left cursor-pointer hover:bg-fg/2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+                className="relative w-full flex items-center gap-3 px-5 py-5 text-left cursor-pointer overflow-hidden hover:bg-fg/2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
               >
+                {/* Timing-tower probability bar: width = live probability. */}
                 <span
                   aria-hidden="true"
-                  className="w-2 h-2 rounded-full shrink-0"
-                  style={{ background: row.color }}
+                  className="absolute bottom-0 left-0 h-0.5 transition-[width] duration-700 ease-out"
+                  style={{ width: `${row.pct ?? 0}%`, background: row.color }}
                 />
+                <span
+                  className="font-mono text-[11px] tabular-nums shrink-0 w-6"
+                  style={{ color: row.color }}
+                >
+                  {String(rank + 1).padStart(2, "0")}
+                </span>
                 <span className="text-lg font-bold text-fg truncate">{row.outcome.label}</span>
-                <span className="ml-auto mr-3 font-mono text-2xl font-bold tabular-nums text-fg shrink-0">
+                <span className="ml-auto mr-3 font-pixel text-2xl sm:text-3xl tabular-nums text-fg shrink-0">
                   {row.pct != null ? `${Math.round(row.pct)}%` : "—"}
                 </span>
                 {(["yes", "no"] as const).map((side) => {
@@ -258,7 +202,7 @@ export function OutcomesPanel({
                         e.stopPropagation();
                         toggleSelection(row.outcome.id, side);
                       }}
-                      className={`shrink-0 px-3 py-2 rounded-md font-mono text-[11px] uppercase tracking-[0.08em] tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${tone}`}
+                      className={`shrink-0 px-3 py-2 font-mono text-[11px] uppercase tracking-[0.08em] tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${tone}`}
                     >
                       Buy {side}{" "}
                       <span className="font-bold">{cents != null ? `${cents}¢` : "—"}</span>
@@ -278,6 +222,6 @@ export function OutcomesPanel({
           );
         })}
       </div>
-    </section>
+    </Frame>
   );
 }

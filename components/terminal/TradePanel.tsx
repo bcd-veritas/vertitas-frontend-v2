@@ -16,6 +16,7 @@ import {
 import { buildOrderTypedData, type OrderIntent } from "@/lib/orders/eip712";
 import { submitEnabled, submitSignedOrder } from "@/lib/orders/submit";
 import { RollingNumber } from "../profile/RollingNumber";
+import { Frame } from "./Frame";
 import type { TradeSelection } from "./OutcomesPanel";
 
 type Mode = "MARKET" | "LIMIT";
@@ -37,10 +38,13 @@ export function TradePanel({
   market,
   selection,
   books,
+  accent,
 }: {
   market: ApiMarket;
   selection: TradeSelection | null;
   books: OrderBookData[];
+  /** Selected outcome's rank color — floods the ticket chrome and CTA. */
+  accent?: string;
 }) {
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
@@ -237,51 +241,51 @@ export function TradePanel({
     setLimitCents(String(Math.round(next * 100) / 100));
   };
 
+  // The ticket floods with the selected outcome's rank color: full strength
+  // on the ticks, label, dot, and CTA; the border runs at partial opacity.
+  const flood = accent ?? "var(--color-accent)";
+  const dimFlood = `color-mix(in srgb, ${flood} 45%, transparent)`;
+  const busy = phase === "signing" || phase === "submitting";
+
+  const modeTabs = (
+    <div role="tablist" aria-label="Order type" className="flex items-center gap-1">
+      {(["MARKET", "LIMIT"] as const).map((m) => {
+        const on = mode === m;
+        return (
+          <button
+            key={m}
+            role="tab"
+            aria-selected={on}
+            onClick={() => changeMode(m)}
+            className={`px-2 py-1 font-mono text-[11px] tracking-[0.14em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${
+              on ? "text-fg bg-fg/5" : "text-muted hover:text-fg/80"
+            }`}
+          >
+            {m}
+          </button>
+        );
+      })}
+    </div>
+  );
+
   return (
-    <section
-      className="relative bg-surface/70 border border-line rounded-xl overflow-hidden"
-      aria-label="Trade"
+    <Frame
+      label="TRADE"
+      ariaLabel="Trade"
+      accent={dimFlood}
+      tickColor={flood}
+      right={modeTabs}
     >
-      <span
-        aria-hidden="true"
-        className="absolute top-2.5 right-3 font-mono text-muted/40 text-xs select-none"
-      >
-        +
-      </span>
-
-      {/* heading row: TRADE + MARKET/LIMIT segmented toggle */}
-      <div className="flex flex-wrap items-center justify-between gap-3 px-5 pt-4 pb-3">
-        <h2 className="font-pixel text-xl tracking-wide text-fg">TRADE</h2>
-        <div role="tablist" aria-label="Order type" className="flex items-center gap-1">
-          {(["MARKET", "LIMIT"] as const).map((m) => {
-            const on = mode === m;
-            return (
-              <button
-                key={m}
-                role="tab"
-                aria-selected={on}
-                onClick={() => changeMode(m)}
-                className={`px-2 py-1 rounded font-mono text-[11px] tracking-[0.14em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${
-                  on ? "text-fg bg-fg/5" : "text-muted hover:text-fg/80"
-                }`}
-              >
-                {m}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
       {/* outcome strip: color dot + label + side chip + live cents */}
-      <div className="flex items-center gap-2 px-5 pb-3 border-b border-line/50">
+      <div className="flex items-center gap-2 px-5 pt-1 pb-3 border-b border-line/50">
         <span
           aria-hidden="true"
-          className="w-2 h-2 rounded-full shrink-0"
-          style={{ background: "var(--color-accent)" }}
+          className="w-2 h-2 shrink-0 transition-colors duration-300"
+          style={{ background: flood }}
         />
         <span className="text-sm text-fg truncate">{outcome?.label ?? "select an outcome"}</span>
         <span
-          className={`ml-auto shrink-0 px-2 py-0.5 rounded font-mono text-[11px] uppercase tracking-[0.08em] ${
+          className={`ml-auto shrink-0 px-2 py-0.5 font-mono text-[11px] uppercase tracking-[0.08em] ${
             yesToneActive ? "bg-yes/10 text-yes" : "bg-no/10 text-no"
           }`}
         >
@@ -309,7 +313,7 @@ export function TradePanel({
               key={a}
               aria-pressed={on}
               onClick={() => changeAction(a)}
-              className={`px-3 py-2 rounded-md border font-mono text-[11px] uppercase tracking-[0.14em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${tone}`}
+              className={`px-3 py-2 border font-mono text-[11px] uppercase tracking-[0.14em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${tone}`}
             >
               {a}
             </button>
@@ -340,14 +344,14 @@ export function TradePanel({
                   <button
                     key={d}
                     onClick={() => addChipDollars(d)}
-                    className="px-2 py-1 rounded border border-line font-mono text-[11px] uppercase tracking-[0.1em] text-muted hover:text-fg/80 hover:border-line/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+                    className="px-2 py-1 border border-line font-mono text-[11px] uppercase tracking-[0.1em] text-muted hover:text-fg/80 hover:border-line/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
                   >
                     +${d}
                   </button>
                 ))}
               <button
                 onClick={setMax}
-                className="px-2 py-1 rounded border border-line font-mono text-[11px] uppercase tracking-[0.1em] text-muted hover:text-fg/80 hover:border-line/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+                className="px-2 py-1 border border-line font-mono text-[11px] uppercase tracking-[0.1em] text-muted hover:text-fg/80 hover:border-line/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
               >
                 MAX
               </button>
@@ -359,7 +363,7 @@ export function TradePanel({
               <button
                 aria-label="Decrease price"
                 onClick={() => stepLimitPrice(-1)}
-                className="px-2 py-1 rounded border border-line font-mono text-sm text-muted hover:text-fg/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+                className="px-2 py-1 border border-line font-mono text-sm text-muted hover:text-fg/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
               >
                 −
               </button>
@@ -374,7 +378,7 @@ export function TradePanel({
               <button
                 aria-label="Increase price"
                 onClick={() => stepLimitPrice(1)}
-                className="px-2 py-1 rounded border border-line font-mono text-sm text-muted hover:text-fg/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+                className="px-2 py-1 border border-line font-mono text-sm text-muted hover:text-fg/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
               >
                 +
               </button>
@@ -386,11 +390,11 @@ export function TradePanel({
                 onChange={(e) => setLimitShares(sanitizeNumeric(e.target.value))}
                 placeholder="shares"
                 aria-label="Shares"
-                className="w-full bg-transparent font-mono text-lg text-fg placeholder:text-muted/40 focus-visible:outline-none border border-line rounded-md px-2 py-1"
+                className="w-full bg-transparent font-mono text-lg text-fg placeholder:text-muted/40 focus-visible:outline-none border border-line px-2 py-1"
               />
               <button
                 onClick={setMax}
-                className="px-2 py-1 rounded border border-line font-mono text-[11px] uppercase tracking-[0.1em] text-muted hover:text-fg/80 hover:border-line/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+                className="px-2 py-1 border border-line font-mono text-[11px] uppercase tracking-[0.1em] text-muted hover:text-fg/80 hover:border-line/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
               >
                 MAX
               </button>
@@ -427,13 +431,10 @@ export function TradePanel({
         <button
           disabled={!ready && isConnected}
           onClick={isConnected ? placeOrder : openConnectModal}
-          className={`w-full px-4 py-3 rounded-md font-mono text-[11px] uppercase tracking-[0.14em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${
-            !ready && isConnected
-              ? "bg-fg/10 text-muted"
-              : action === "buy"
-                ? "bg-yes text-bg"
-                : "bg-no text-bg"
-          }`}
+          style={!ready && isConnected ? undefined : { background: flood, color: "var(--color-bg)" }}
+          className={`relative overflow-hidden w-full px-4 py-3 font-mono text-[11px] uppercase tracking-[0.14em] transition-colors duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${
+            busy ? "cta-busy" : ""
+          } ${!ready && isConnected ? "bg-fg/10 text-muted" : ""}`}
         >
           {cta}
         </button>
@@ -459,6 +460,6 @@ export function TradePanel({
             : "orders are eip-712 signed · submission pending backend · sim.data"}
         </p>
       </div>
-    </section>
+    </Frame>
   );
 }
