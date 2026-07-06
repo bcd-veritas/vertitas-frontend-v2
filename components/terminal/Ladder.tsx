@@ -34,7 +34,7 @@ function LadderRow({
     <div className="relative grid grid-cols-[56px_1fr_1fr] items-center gap-2 px-5 py-1.25 font-mono text-[11px] tabular-nums">
       <span
         aria-hidden="true"
-        className={`absolute inset-y-0.75 right-0 ${color} opacity-[0.4]`}
+        className={`absolute inset-y-0.75 right-0 ${color} opacity-[0.4] transition-[width] duration-500 ease-out`}
         style={{ ...HATCH, width: `${width}%` }}
       />
       <span className={color}>{centsLabel(level.price)}</span>

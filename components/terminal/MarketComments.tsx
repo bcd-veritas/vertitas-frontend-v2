@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { FeaturedComment } from "@/lib/markets/types";
 import { getMarketComments } from "@/lib/markets/data";
 import { ComingSoonBody } from "./ComingSoon";
+import { Frame } from "./Frame";
 
 type TabId = "comments" | "holders" | "activity";
 const TABS: { id: TabId; label: string }[] = [
@@ -95,9 +96,8 @@ export function MarketComments({ marketId }: { marketId: string }) {
   }, [marketId]);
 
   return (
-    <section className="relative bg-surface/70 border border-line rounded-xl" aria-label="Market discussion">
-      <span aria-hidden="true" className="absolute top-2.5 right-3 font-mono text-muted/40 text-xs select-none">+</span>
-      <div role="tablist" aria-label="Sections" className="flex items-center gap-1 px-4 pt-2 border-b border-line">
+    <Frame label="DISCUSSION" ariaLabel="Market discussion">
+      <div role="tablist" aria-label="Sections" className="flex items-center gap-1 px-4 border-b border-line">
         {TABS.map(({ id, label }) => {
           const on = tab === id;
           return (
@@ -112,7 +112,7 @@ export function MarketComments({ marketId }: { marketId: string }) {
             >
               {label}
               {on && (
-                <span aria-hidden="true" className="absolute -bottom-px left-2 right-2 h-[2px] bg-accent rounded-full" />
+                <span aria-hidden="true" className="absolute -bottom-px left-2 right-2 h-[2px] bg-accent" />
               )}
             </button>
           );
@@ -124,6 +124,6 @@ export function MarketComments({ marketId }: { marketId: string }) {
         {tab === "holders" && <ComingSoonBody />}
         {tab === "activity" && <ComingSoonBody />}
       </div>
-    </section>
+    </Frame>
   );
 }

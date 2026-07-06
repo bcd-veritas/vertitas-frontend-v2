@@ -1,4 +1,5 @@
 import type { ApiMarket } from "@/lib/markets/types";
+import { Frame } from "./Frame";
 
 function trunc(v: string | null, head = 10, tail = 6): string {
   if (!v) return "—";
@@ -17,9 +18,8 @@ function LeaderRow({ k, v }: { k: string; v: string }) {
 
 export function RulesPanel({ market }: { market: ApiMarket }) {
   return (
-    <section className="relative bg-surface/70 border border-line rounded-xl p-5" aria-label="Rules and resolution">
-      <span aria-hidden="true" className="absolute top-2.5 right-3 font-mono text-muted/40 text-xs select-none">+</span>
-      <h2 className="font-pixel text-xl tracking-wide text-fg mb-3">RULES // RESOLUTION</h2>
+    <Frame label="RULES // RESOLUTION" ariaLabel="Rules and resolution">
+      <div className="px-5 pb-5 pt-1">
       {market.description && (
         <p className="text-sm text-muted leading-relaxed mb-4">{market.description}</p>
       )}
@@ -35,6 +35,7 @@ export function RulesPanel({ market }: { market: ApiMarket }) {
         v={`${market.outcomes.length} (${market.outcomes.length === 2 ? "BINARY" : "MULTI"})`}
       />
       <LeaderRow k="market_id" v={trunc(market.id, 8, 4)} />
-    </section>
+      </div>
+    </Frame>
   );
 }

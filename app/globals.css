@@ -76,3 +76,32 @@ body {
     animation: none;
   }
 }
+
+/* Terminal hero — blinking block cursor beside the consensus readout */
+@keyframes blink {
+  0%, 55% { opacity: 1; }
+  56%, 100% { opacity: 0; }
+}
+.blink {
+  animation: blink 1.1s steps(1) infinite;
+}
+
+/* Trade ticket CTA — light sweep while a signature/submission is pending */
+@keyframes cta-sweep {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(100%); }
+}
+.cta-busy::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 25%, rgba(255, 255, 255, 0.25) 50%, transparent 75%);
+  animation: cta-sweep 1.1s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .blink,
+  .cta-busy::after {
+    animation: none;
+  }
+}
