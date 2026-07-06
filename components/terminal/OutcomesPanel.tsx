@@ -166,22 +166,30 @@ function Expansion({ row }: { row: Row }) {
   );
 }
 
+export type TradeSelection = { outcomeId: string; side: "yes" | "no" };
+
 export function OutcomesPanel({
   outcomes,
   books,
   series,
+  selection,
+  onSelect,
 }: {
   outcomes: ApiOutcome[];
   books: OrderBookData[];
   series: PricePoint[][];
+  selection: TradeSelection | null;
+  onSelect: (s: TradeSelection | null) => void;
 }) {
   const [openKey, setOpenKey] = useState<string | null>(null);
-  // The selected side per market feeds the trade panel later; re-click deselects.
-  const [selection, setSelection] = useState<{ key: string; side: "yes" | "no" } | null>(null);
   const rows = useMemo(() => deriveRows(outcomes, books, series), [outcomes, books, series]);
 
-  const toggleSelection = (key: string, side: "yes" | "no") =>
-    setSelection((prev) => (prev?.key === key && prev.side === side ? null : { key, side }));
+  const toggleSelection = (outcomeId: string, side: "yes" | "no") =>
+    onSelect(
+      selection?.outcomeId === outcomeId && selection.side === side
+        ? null
+        : { outcomeId, side },
+    );
 
   return (
     <section
@@ -218,21 +226,21 @@ export function OutcomesPanel({
                     setOpenKey(open ? null : row.outcome.id);
                   }
                 }}
-                className="w-full flex items-center gap-3 px-5 py-3 text-left cursor-pointer hover:bg-fg/2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+                className="w-full flex items-center gap-3 px-5 py-5 text-left cursor-pointer hover:bg-fg/2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
               >
                 <span
                   aria-hidden="true"
                   className="w-2 h-2 rounded-full shrink-0"
                   style={{ background: row.color }}
                 />
-                <span className="text-sm text-fg truncate">{row.outcome.label}</span>
+                <span className="text-lg font-bold text-fg truncate">{row.outcome.label}</span>
                 <span className="ml-auto mr-3 font-mono text-2xl font-bold tabular-nums text-fg shrink-0">
                   {row.pct != null ? `${Math.round(row.pct)}%` : "—"}
                 </span>
                 {(["yes", "no"] as const).map((side) => {
                   const cents = side === "yes" ? row.yesCents : row.noCents;
                   const selected =
-                    selection?.key === row.outcome.id && selection.side === side;
+                    selection?.outcomeId === row.outcome.id && selection.side === side;
                   const tone =
                     side === "yes"
                       ? selected

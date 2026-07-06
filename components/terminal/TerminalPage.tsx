@@ -4,16 +4,16 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import type { ApiMarket, OrderBookData, PricePoint } from "@/lib/markets/types";
-import { closesLabel, countdown } from "@/lib/markets/format";
+import { closesLabel, countdown, rankedOutcomes } from "@/lib/markets/format";
 import { Topbar } from "../app/Topbar";
 import { CategoryIcon } from "../app/categoryIcon";
 import { MonoLabel } from "../landing/ui/MonoLabel";
 import { RulesPanel } from "./RulesPanel";
 import { RelatedMarkets } from "./RelatedMarkets";
-import { ComingSoonPanel } from "./ComingSoon";
 import { MarketComments } from "./MarketComments";
-import { OutcomesPanel } from "./OutcomesPanel";
+import { OutcomesPanel, type TradeSelection } from "./OutcomesPanel";
 import { PriceChart } from "./PriceChart";
+import { TradePanel } from "./TradePanel";
 
 export function TerminalPage({
   market,
@@ -27,6 +27,11 @@ export function TerminalPage({
   series: PricePoint[][];
 }) {
   const live = market.status === "ACTIVE";
+  const [selection, setSelection] = useState<TradeSelection | null>(() => {
+    const ranked = rankedOutcomes(market);
+    const top = ranked[0]?.outcome;
+    return top ? { outcomeId: top.id, side: "yes" } : null;
+  });
 
   return (
     <div className="dot-grid min-h-screen flex flex-col">
@@ -58,14 +63,20 @@ export function TerminalPage({
           {/* Main column */}
           <div className="flex flex-col gap-5 min-w-0">
             <PriceChart outcomes={market.outcomes} series={series} />
-            <OutcomesPanel outcomes={market.outcomes} books={books} series={series} />
+            <OutcomesPanel
+              outcomes={market.outcomes}
+              books={books}
+              series={series}
+              selection={selection}
+              onSelect={setSelection}
+            />
             <MarketComments marketId={market.id} />
             <RelatedMarkets markets={related} />
           </div>
 
           {/* Rail */}
           <div className="flex flex-col gap-5 lg:sticky lg:top-20">
-            <ComingSoonPanel heading="TRADE" minHeight="min-h-[320px]" />
+            <TradePanel market={market} selection={selection} books={books} />
             <RulesPanel market={market} />
           </div>
         </div>

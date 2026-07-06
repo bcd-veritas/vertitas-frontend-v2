@@ -44,7 +44,7 @@ export function CountUp({
       gsap.to(counter, {
         v: value,
         duration: 1.2,
-        ease: "power3.out",
+        ease: "power2.inOut",
         scrollTrigger: { trigger: el, start: "top 90%", once: true },
         onUpdate: () => {
           el.textContent = fmt(counter.v);
