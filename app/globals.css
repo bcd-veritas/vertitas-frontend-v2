@@ -127,6 +127,34 @@ body {
   }
 }
 
+/* Featured landscape — autoplay progress bar (duration set inline) */
+@keyframes featured-progress {
+  from { width: 0%; }
+  to { width: 100%; }
+}
+.featured-progress {
+  animation: featured-progress linear forwards;
+}
+
+/* Featured landscape — secondary outcome lines crossfade per slide */
+@keyframes terrain-lines-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.terrain-lines {
+  animation: terrain-lines-in 800ms ease forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .featured-progress {
+    animation: none;
+    width: 100%;
+  }
+  .terrain-lines {
+    animation: none;
+  }
+}
+
 /* Terminal hero — blinking block cursor beside the consensus readout */
 @keyframes blink {
   0%,
