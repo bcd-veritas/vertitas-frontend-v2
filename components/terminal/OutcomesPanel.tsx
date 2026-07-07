@@ -2,7 +2,8 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
-import { toCents } from "@/lib/markets/format";
+import { oneDp, toCents } from "@/lib/markets/format";
+import { complementBook } from "@/lib/orders/book-math";
 import { ProbabilityChart, type ChartSeries } from "../charts/ProbabilityChart";
 import { MonoLabel } from "../landing/ui/MonoLabel";
 import { ComingSoonBody } from "./ComingSoon";
@@ -44,22 +45,40 @@ const TABS: { id: TabId; label: string }[] = [
 ];
 
 /** Mounted only while its row is open — closing resets the tab to Order Book. */
-function Expansion({ row }: { row: RankedRow }) {
+function Expansion({
+  row,
+  side,
+  binary,
+}: {
+  row: RankedRow;
+  side: "yes" | "no";
+  binary: boolean;
+}) {
   const [tab, setTab] = useState<TabId>("book");
+
+  // "Buy No" flips the expansion to the complementary side: the No book is the
+  // Yes book mirrored (each level re-priced 100 − p, bids/asks swapped) and the
+  // No probability line is 100 − Yes. "Buy Yes" shows the raw book/history.
+  const book = useMemo(
+    () => (side === "no" ? complementBook(row.book) : row.book),
+    [row.book, side],
+  );
 
   const graphSeries = useMemo<ChartSeries[]>(
     () => [
       {
         key: row.outcome.id,
-        label: row.outcome.label,
+        label: binary
+          ? side === "no" ? "No" : "Yes"
+          : side === "no" ? `${row.outcome.label} · No` : row.outcome.label,
         color: row.color,
         points: row.history.map((p) => ({
           t: +new Date(p.createdAt),
-          pct: toCents(p.price),
+          pct: side === "no" ? 100 - toCents(p.price) : toCents(p.price),
         })),
       },
     ],
-    [row],
+    [row, side, binary],
   );
   const hasGraph = graphSeries[0].points.length >= 2;
 
@@ -68,37 +87,42 @@ function Expansion({ row }: { row: RankedRow }) {
       className="border-t border-line/50 border-l-2 bg-bg/30"
       style={{ borderLeftColor: row.color }}
     >
-      <div
-        role="tablist"
-        aria-label="Outcome detail"
-        className="flex items-center gap-1 px-4 pt-1 border-b border-line/50"
-      >
-        {TABS.map(({ id, label }) => {
-          const on = tab === id;
-          return (
-            <button
-              key={id}
-              role="tab"
-              aria-selected={on}
-              onClick={() => setTab(id)}
-              className={`relative px-3 py-2 font-mono text-[11px] uppercase tracking-[0.14em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${on ? "text-fg" : "text-muted hover:text-fg/80"
-                }`}
-            >
-              {label}
-              {on && (
-                <span
-                  aria-hidden="true"
-                  className="absolute -bottom-px left-2 right-2 h-0.5"
-                  style={{ background: row.color }}
-                />
-              )}
-            </button>
-          );
-        })}
+      <div className="flex items-center gap-1 px-4 pt-1 border-b border-line/50">
+        <div role="tablist" aria-label="Outcome detail" className="flex items-center gap-1">
+          {TABS.map(({ id, label }) => {
+            const on = tab === id;
+            return (
+              <button
+                key={id}
+                role="tab"
+                aria-selected={on}
+                onClick={() => setTab(id)}
+                className={`relative px-3 py-2 font-mono text-[11px] uppercase tracking-[0.14em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${on ? "text-fg" : "text-muted hover:text-fg/80"
+                  }`}
+              >
+                {label}
+                {on && (
+                  <span
+                    aria-hidden="true"
+                    className="absolute -bottom-px left-2 right-2 h-0.5"
+                    style={{ background: row.color }}
+                  />
+                )}
+              </button>
+            );
+          })}
+        </div>
+        {/* Which side this expansion is showing — book/graph flip with it. */}
+        <span
+          className={`ml-auto px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em] ${side === "yes" ? "text-yes" : "text-no"
+            }`}
+        >
+          {side} view
+        </span>
       </div>
 
       <div className="py-3">
-        {tab === "book" && <Ladder book={row.book} />}
+        {tab === "book" && <Ladder book={book} />}
         {tab === "graph" &&
           (hasGraph ? (
             <div className="px-2">
@@ -123,6 +147,7 @@ export function OutcomesPanel({
   onSelect,
   openKey,
   onOpenChange,
+  binary = false,
 }: {
   /** Pre-ranked, pre-colored rows shared with the rest of the page. */
   rows: RankedRow[];
@@ -131,6 +156,8 @@ export function OutcomesPanel({
   /** Controlled expansion — the page retints hero/ticket to the open row. */
   openKey: string | null;
   onOpenChange: (key: string | null) => void;
+  /** Yes/No market — rank.ts already collapsed it to the single YES row. */
+  binary?: boolean;
 }) {
 
   const toggleSelection = (outcomeId: string, side: "yes" | "no") =>
@@ -144,11 +171,19 @@ export function OutcomesPanel({
     <Frame
       label="OUTCOMES"
       ariaLabel="Outcomes"
-      right={<MonoLabel>{`${rows.length} outcomes // tap to expand`}</MonoLabel>}
+      right={
+        <MonoLabel>
+          {binary ? "yes / no // tap to expand" : `${rows.length} outcomes // tap to expand`}
+        </MonoLabel>
+      }
     >
       <div className="divide-y divide-line/50 border-t border-line/50 mt-1">
         {rows.map((row, rank) => {
           const open = openKey === row.outcome.id;
+          // Opening a row and picking a side stay in sync (TerminalPage), so the
+          // open row's side is the current selection's side, else default Yes.
+          const rowSide =
+            selection?.outcomeId === row.outcome.id ? selection.side : "yes";
           return (
             <div key={row.outcome.id}>
               {/* Row is a div (not a button) so YES/NO can be real buttons inside. */}
@@ -177,9 +212,11 @@ export function OutcomesPanel({
                 >
                   {String(rank + 1).padStart(2, "0")}
                 </span>
-                <span className="text-lg font-bold text-fg truncate">{row.outcome.label}</span>
+                <span className="text-lg font-bold text-fg truncate">
+                  {binary ? "Yes / No" : row.outcome.label}
+                </span>
                 <span className="ml-auto mr-3 font-pixel text-2xl sm:text-3xl tabular-nums text-fg shrink-0">
-                  {row.pct != null ? `${Math.round(row.pct)}%` : "—"}
+                  {row.pct != null ? `${oneDp(row.pct)}%` : "—"}
                 </span>
                 {(["yes", "no"] as const).map((side) => {
                   const cents = side === "yes" ? row.yesCents : row.noCents;
@@ -196,7 +233,11 @@ export function OutcomesPanel({
                   return (
                     <button
                       key={side}
-                      aria-label={`Buy ${row.outcome.label} ${side}${cents != null ? ` at ${cents}¢` : ""}`}
+                      aria-label={
+                        binary
+                          ? `Buy ${side}${cents != null ? ` at ${oneDp(cents)}¢` : ""}`
+                          : `Buy ${row.outcome.label} ${side}${cents != null ? ` at ${oneDp(cents)}¢` : ""}`
+                      }
                       aria-pressed={selected}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -205,7 +246,7 @@ export function OutcomesPanel({
                       className={`shrink-0 px-3 py-2 font-mono text-[11px] uppercase tracking-[0.08em] tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${tone}`}
                     >
                       Buy {side}{" "}
-                      <span className="font-bold">{cents != null ? `${cents}¢` : "—"}</span>
+                      <span className="font-bold">{cents != null ? `${oneDp(cents)}¢` : "—"}</span>
                     </button>
                   );
                 })}
@@ -216,7 +257,7 @@ export function OutcomesPanel({
                 />
               </div>
               <Collapsible open={open}>
-                <Expansion row={row} />
+                <Expansion row={row} side={rowSide} binary={binary} />
               </Collapsible>
             </div>
           );

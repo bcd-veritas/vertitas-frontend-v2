@@ -89,7 +89,7 @@ export function TerminalHero({
           >
             <span className="font-pixel leading-none tracking-wide text-[clamp(3.5rem,9vw,7.5rem)]">
               {leader.pct != null ? (
-                <RollingNumber value={Math.round(leader.pct)} suffix="%" />
+                <RollingNumber value={leader.pct} decimals={1} minDecimals={0} suffix="%" />
               ) : (
                 "—"
               )}

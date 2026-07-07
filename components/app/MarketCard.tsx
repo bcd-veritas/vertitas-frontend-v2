@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { ApiMarket } from "@/lib/markets/types";
-import { closesLabel, countdown, formatVol, multiplier, rankedOutcomes } from "@/lib/markets/format";
+import { closesLabel, countdown, formatVol, multiplier, oneDp, rankedOutcomes } from "@/lib/markets/format";
 import { CategoryIcon } from "./categoryIcon";
 import { MonoLabel } from "../landing/ui/MonoLabel";
 
@@ -29,7 +29,7 @@ function OutcomeRow({
   color: { text: string; bar: string };
 }) {
   const mult = multiplier(pct != null ? pct / 100 : null);
-  const pctText = pct != null ? `${pct}%` : "—";
+  const pctText = pct != null ? `${oneDp(pct)}%` : "—";
   const barWidth = pct != null ? Math.max(4, pct) : 0;
 
   const row = (
@@ -76,7 +76,7 @@ function OutcomeRow({
     <Link
       href={href}
       className="group/row relative z-10 flex items-baseline py-2.5 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
-      aria-label={`Trade ${label} at ${pct}%`}
+      aria-label={`Trade ${label} at ${oneDp(pct)}%`}
     >
       {row}
       <span

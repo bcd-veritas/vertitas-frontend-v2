@@ -1,5 +1,5 @@
 import type { ApiOutcome, OrderBookData, PricePoint } from "@/lib/markets/types";
-import { toCents } from "@/lib/markets/format";
+import { binaryYesOutcome, toCents } from "@/lib/markets/format";
 import { CHART_PALETTE } from "../charts/palette";
 
 const EMPTY_BOOK: OrderBookData = { bids: [], asks: [] };
@@ -14,9 +14,9 @@ export type RankedRow = {
   history: PricePoint[];
   /** Probability 0–100: latest trade, else book midpoint, else null. */
   pct: number | null;
-  /** Cost to buy YES = best ask (whole cents), null when no asks. */
+  /** Cost to buy YES = best ask (cents, one decimal), null when no asks. */
   yesCents: number | null;
-  /** Cost to buy NO = 100 − best bid (whole cents), null when no bids. */
+  /** Cost to buy NO = 100 − best bid (cents, one decimal), null when no bids. */
   noCents: number | null;
   /** Rank color — one shared assignment for chart, tower, hero, and ticket. */
   color: string;
@@ -33,7 +33,15 @@ export function rankRows(
   books: OrderBookData[],
   series: PricePoint[][],
 ): RankedRow[] {
-  const rows = outcomes.map((outcome, i): RankedRow => {
+  // Binary (Yes/No) markets collapse to the YES row: the "No" outcome is a
+  // phantom (no book of its own — NO trading is the complement of the YES
+  // book), so ranking it alongside YES would render a dead "—" row with
+  // nonsensical Buy yes/Buy no chips on both lines.
+  const yes = binaryYesOutcome(outcomes);
+  const visible = yes ? outcomes.filter((o) => o.id === yes.id) : outcomes;
+
+  const rows = visible.map((outcome): RankedRow => {
+    const i = outcomes.indexOf(outcome);
     const book = books[i] ?? EMPTY_BOOK;
     const history = series[i] ?? [];
     const bestBid = book.bids[0] ? toCents(book.bids[0].price) : null;
@@ -48,8 +56,8 @@ export function rankRows(
       book,
       history,
       pct,
-      yesCents: bestAsk != null ? Math.round(bestAsk) : null,
-      noCents: bestBid != null ? Math.round(100 - bestBid) : null,
+      yesCents: bestAsk,
+      noCents: bestBid != null ? 100 - bestBid : null,
       color: "", // assigned after sorting, by rank
     };
   });
