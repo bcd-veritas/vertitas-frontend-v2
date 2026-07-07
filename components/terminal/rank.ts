@@ -18,6 +18,10 @@ export type RankedRow = {
   yesCents: number | null;
   /** Cost to buy NO = 100 − best bid (cents, one decimal), null when no bids. */
   noCents: number | null;
+  /** Proceeds to sell YES = best bid, null when no bids. */
+  sellYesCents: number | null;
+  /** Proceeds to sell NO = 100 − best ask, null when no asks. */
+  sellNoCents: number | null;
   /** Rank color — one shared assignment for chart, tower, hero, and ticket. */
   color: string;
 };
@@ -48,8 +52,12 @@ export function rankRows(
     const bestAsk = book.asks[0] ? toCents(book.asks[0].price) : null;
     const lastTrade =
       history.length > 0 ? toCents(history[history.length - 1].price) : null;
+    // Mirror the backend's priceFor (which feeds /home & featured): the mark
+    // is the book midpoint when both sides exist, else the last trade. Using
+    // the opposite priority here made the detail page's chance disagree with
+    // the card's for the same market.
     const pct =
-      lastTrade ?? (bestBid != null && bestAsk != null ? (bestBid + bestAsk) / 2 : null);
+      bestBid != null && bestAsk != null ? (bestBid + bestAsk) / 2 : lastTrade;
 
     return {
       outcome,
@@ -58,6 +66,8 @@ export function rankRows(
       pct,
       yesCents: bestAsk,
       noCents: bestBid != null ? 100 - bestBid : null,
+      sellYesCents: bestBid,
+      sellNoCents: bestAsk != null ? 100 - bestAsk : null,
       color: "", // assigned after sorting, by rank
     };
   });

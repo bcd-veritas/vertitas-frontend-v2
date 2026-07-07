@@ -114,7 +114,7 @@ function Expansion({
         </div>
         {/* Which side this expansion is showing — book/graph flip with it. */}
         <span
-          className={`ml-auto px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em] ${side === "yes" ? "text-yes" : "text-no"
+          className={`ml-auto px-2 py-0.5 font-mono text-[14px] uppercase tracking-[0.14em] ${side === "yes" ? "text-yes" : "text-no"
             }`}
         >
           {side} view
@@ -148,6 +148,7 @@ export function OutcomesPanel({
   openKey,
   onOpenChange,
   binary = false,
+  action,
 }: {
   /** Pre-ranked, pre-colored rows shared with the rest of the page. */
   rows: RankedRow[];
@@ -158,7 +159,10 @@ export function OutcomesPanel({
   onOpenChange: (key: string | null) => void;
   /** Yes/No market — rank.ts already collapsed it to the single YES row. */
   binary?: boolean;
+  /** Buy/Sell (from the trade panel) — sets the side buttons' verb. */
+  action: "buy" | "sell";
 }) {
+  const verb = action === "sell" ? "Sell" : "Buy";
 
   const toggleSelection = (outcomeId: string, side: "yes" | "no") =>
     onSelect(
@@ -219,7 +223,11 @@ export function OutcomesPanel({
                   {row.pct != null ? `${oneDp(row.pct)}%` : "—"}
                 </span>
                 {(["yes", "no"] as const).map((side) => {
-                  const cents = side === "yes" ? row.yesCents : row.noCents;
+                  // Buy shows the ask side; Sell shows the bid side (proceeds).
+                  const cents =
+                    action === "sell"
+                      ? side === "yes" ? row.sellYesCents : row.sellNoCents
+                      : side === "yes" ? row.yesCents : row.noCents;
                   const selected =
                     selection?.outcomeId === row.outcome.id && selection.side === side;
                   const tone =
@@ -235,8 +243,8 @@ export function OutcomesPanel({
                       key={side}
                       aria-label={
                         binary
-                          ? `Buy ${side}${cents != null ? ` at ${oneDp(cents)}¢` : ""}`
-                          : `Buy ${row.outcome.label} ${side}${cents != null ? ` at ${oneDp(cents)}¢` : ""}`
+                          ? `${verb} ${side}${cents != null ? ` at ${oneDp(cents)}¢` : ""}`
+                          : `${verb} ${row.outcome.label} ${side}${cents != null ? ` at ${oneDp(cents)}¢` : ""}`
                       }
                       aria-pressed={selected}
                       onClick={(e) => {
@@ -245,7 +253,7 @@ export function OutcomesPanel({
                       }}
                       className={`shrink-0 px-3 py-2 font-mono text-[11px] uppercase tracking-[0.08em] tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${tone}`}
                     >
-                      Buy {side}{" "}
+                      {verb} {side}{" "}
                       <span className="font-bold">{cents != null ? `${oneDp(cents)}¢` : "—"}</span>
                     </button>
                   );

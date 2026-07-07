@@ -40,6 +40,8 @@ export function TradePanel({
   books,
   accent,
   binary = false,
+  action,
+  onActionChange,
 }: {
   market: ApiMarket;
   selection: TradeSelection | null;
@@ -48,6 +50,9 @@ export function TradePanel({
   accent?: string;
   /** Yes/No market — the outcome IS the market, so labels drop it. */
   binary?: boolean;
+  /** Buy/Sell, owned by the page so the outcomes list can relabel its buttons. */
+  action: Action;
+  onActionChange: (a: Action) => void;
 }) {
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
@@ -55,7 +60,6 @@ export function TradePanel({
   const { openConnectModal } = useConnectModal();
 
   const [mode, setMode] = useState<Mode>("MARKET");
-  const [action, setAction] = useState<Action>("buy");
   const [amount, setAmount] = useState(""); // MARKET: $ (buy) or shares (sell)
   const [limitCents, setLimitCents] = useState(""); // LIMIT: price in cents
   const [limitShares, setLimitShares] = useState("");
@@ -193,11 +197,9 @@ export function TradePanel({
             ).toUpperCase();
 
   const yesToneActive = side === "yes";
-  const outcomeCents = outcome
-    ? sideBook.asks[0]
-      ? toCents(sideBook.asks[0].price)
-      : null
-    : null;
+  // Buy shows the ask (what you pay); Sell shows the bid (what you receive).
+  const outcomeLevel = action === "sell" ? sideBook.bids[0] : sideBook.asks[0];
+  const outcomeCents = outcome && outcomeLevel ? toCents(outcomeLevel.price) : null;
 
   // Wrapped setters: switching mode/action mid-error or post-done should
   // drop the stale banner/label, but never clobber an in-flight wallet
@@ -211,7 +213,7 @@ export function TradePanel({
   };
 
   const changeAction = (a: Action) => {
-    setAction(a);
+    onActionChange(a);
     if (phase === "error" || phase === "done") {
       setPhase("idle");
       setError(null);

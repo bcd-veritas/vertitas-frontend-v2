@@ -42,6 +42,10 @@ export function TerminalPage({
   // readout rolls to its chance, and the waves + ticket retint to its color.
   const [openKey, setOpenKey] = useState<string | null>(null);
 
+  // Buy/Sell lives here so the trade ticket AND the outcomes-list buttons
+  // (Buy Yes/No ↔ Sell Yes/No) stay in lockstep.
+  const [action, setAction] = useState<"buy" | "sell">("buy");
+
   // One ranking, one palette: hero, chart, tower, and ticket all read from it.
   const rows = useMemo(
     () => rankRows(market.outcomes, books, series),
@@ -121,6 +125,7 @@ export function TerminalPage({
                 openKey={openKey}
                 onOpenChange={handleOpenChange}
                 binary={binary}
+                action={action}
               />
             </div>
             <div data-rise>
@@ -140,6 +145,8 @@ export function TerminalPage({
                 books={books}
                 accent={ticketColor}
                 binary={binary}
+                action={action}
+                onActionChange={setAction}
               />
             </div>
             <div data-rise>
