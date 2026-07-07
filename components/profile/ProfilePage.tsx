@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAccount, useDisconnect } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
@@ -8,6 +8,8 @@ import type { ApiMarket } from "@/lib/markets/types";
 import { Topbar } from "../app/Topbar";
 import { SystemFooter } from "../app/SystemFooter";
 import { mockProfile } from "@/lib/profile/mock";
+import { getUserIdentity, type UserIdentity } from "@/lib/profile/data";
+import { EditProfileDrawer } from "./EditProfileDrawer";
 import { GradientAvatar } from "./GradientAvatar";
 import { HeroValue } from "./HeroValue";
 import { PnlChart } from "../charts/PnlChart";
@@ -22,8 +24,23 @@ export function ProfilePage({ markets }: { markets: ApiMarket[] }) {
   const router = useRouter();
   const [copied, setCopied] = useState(false);
   const [hoverUsd, setHoverUsd] = useState<number | null>(null);
+  const [identity, setIdentity] = useState<UserIdentity | null>(null);
+  const [editing, setEditing] = useState(false);
 
   const profile = useMemo(() => (address ? mockProfile(address) : null), [address]);
+
+  // Saved trading identity (username/email) from the middleware; null until
+  // the user first saves — the UI falls back to the short address.
+  useEffect(() => {
+    if (!address) return;
+    let alive = true;
+    getUserIdentity(address).then((u) => {
+      if (alive) setIdentity(u);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [address]);
 
   if (!isConnected || !address || !profile) {
     return (
@@ -47,6 +64,7 @@ export function ProfilePage({ markets }: { markets: ApiMarket[] }) {
   }
 
   const short = `${address.slice(0, 6)}…${address.slice(-4)}`;
+  const displayName = identity?.username ?? profile.username ?? short;
   const copyAddress = () => {
     navigator.clipboard.writeText(address);
     setCopied(true);
@@ -65,7 +83,7 @@ export function ProfilePage({ markets }: { markets: ApiMarket[] }) {
         <div className="flex items-center justify-between gap-4 px-3 sm:px-4 py-4 border-b border-line">
           <span className="flex items-center gap-3 min-w-0">
             <GradientAvatar seed={address} size={40} />
-            <span className="font-semibold text-fg truncate">{profile.username ?? short}</span>
+            <span className="font-semibold text-fg truncate">{displayName}</span>
           </span>
           <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted shrink-0">
             sim.data // 2026
@@ -82,21 +100,30 @@ export function ProfilePage({ markets }: { markets: ApiMarket[] }) {
           >
             {copied ? "COPIED" : address}
           </button>
-          <button
-            type="button"
-            onClick={() => {
-              disconnect();
-              router.push("/home");
-            }}
-            className="font-mono text-[11px] uppercase tracking-[0.14em] text-no transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 rounded"
-          >
-            Disconnect ↗
-          </button>
+          <span className="flex items-center gap-5 shrink-0">
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              className="font-mono text-[11px] uppercase tracking-[0.14em] text-amber-100 hover:text-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 rounded cursor-pointer"
+            >
+              Edit profile
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                disconnect();
+                router.push("/home");
+              }}
+              className="font-mono text-[11px] uppercase tracking-[0.14em] text-no transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 rounded cursor-pointer"
+            >
+              Disconnect ↗
+            </button>
+          </span>
         </div>
 
         {/* Hero band: headline + outline number over the instance cloud. */}
         <HeroValue
-          title={profile.username ?? short}
+          title={displayName}
           valueCents={profile.portfolioValueCents}
           pnlCents={profile.pnlAllTimeCents}
           winRatePct={profile.winRatePct}
@@ -137,6 +164,14 @@ export function ProfilePage({ markets }: { markets: ApiMarket[] }) {
         <ActivityTable rows={profile.activity} />
       </main>
       <SystemFooter markets={markets} />
+
+      <EditProfileDrawer
+        open={editing}
+        onClose={() => setEditing(false)}
+        address={address}
+        identity={identity}
+        onSaved={setIdentity}
+      />
     </div>
   );
 }
