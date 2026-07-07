@@ -1,91 +1,111 @@
-import type { ApiOutcome } from "@/lib/markets/types";
-
 /**
- * Mirrors veritas-contracts OrderVerifier.sol / ExchangeTypes.sol — the
- * canonical on-chain order. The middleware's current verifier still expects
- * the older "Veritas CLOB" struct; the backend team is aligning it to this
- * one. If their final format differs, THIS FILE is the only place to change.
+ * Mirrors the middleware's order intake EXACTLY — the "Veritas CLOB" EIP-712
+ * struct the backend verifies (src/infra/blockchain/signature/eip712.config.ts)
+ * and the SignedOrder body POST /orders expects. If the backend format changes,
+ * THIS FILE is the only place to change.
  */
 export const ORDER_TYPES = {
   Order: [
+    { name: "orderId", type: "string" },
+    { name: "marketId", type: "string" },
+    { name: "tokenId", type: "string" },
     { name: "maker", type: "address" },
-    { name: "market", type: "address" },
-    { name: "outcomeIndex", type: "uint256" },
     { name: "side", type: "uint8" },
-    { name: "quantity", type: "uint256" },
     { name: "price", type: "uint256" },
-    { name: "nonce", type: "uint256" },
+    { name: "amount", type: "uint256" },
     { name: "expiration", type: "uint256" },
-    { name: "salt", type: "bytes32" },
+    { name: "nonce", type: "uint256" },
   ],
 } as const;
 
-/** ExchangeTypes.PRICE_SCALE — 1e6, NOT the API's 1e8. */
-export const CONTRACT_PRICE_SCALE = 1_000_000n;
-/** Provisional share scale (USDC-aligned); confirm with backend team. */
-export const CONTRACT_QTY_SCALE = 1_000_000n;
+/** PRICE_SCALE / AMOUNT_SCALE in the middleware — both 1e8. */
+const PRICE_SCALE = 100_000_000n;
+const AMOUNT_SCALE = 100_000_000n;
 
-/** Zero until the exchange is deployed; signatures are throwaway until then. */
+/** Must equal the middleware's EXCHANGE_CONTRACT (the signature domain). */
 const EXCHANGE_ADDRESS = (process.env.NEXT_PUBLIC_EXCHANGE_CONTRACT ??
   "0x0000000000000000000000000000000000000000") as `0x${string}`;
 
 export type OrderIntent = {
   marketId: string;
-  outcome: ApiOutcome;
-  side: "yes" | "no";
+  /** The real outcome token this order trades (Yes token or No token). */
+  tokenId: string;
   action: "buy" | "sell";
   orderType: "MARKET" | "LIMIT";
-  /** Price of the SELECTED side in whole-ish cents (market orders: worst walked price). */
+  /** Price for THIS token, in cents (0–100). */
   priceCents: number;
   shares: number;
 };
 
-function randomSalt(): `0x${string}` {
-  const bytes = crypto.getRandomValues(new Uint8Array(32));
-  return `0x${Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("")}`;
+export type SignedOrderBody = {
+  orderId: string;
+  marketId: string;
+  tokenId: string;
+  maker: `0x${string}`;
+  side: "BID" | "ASK";
+  price: string;
+  amount: string;
+  orderType: "MARKET" | "LIMIT";
+  expiration: number;
+  nonce: string;
+  signature: string;
+};
+
+/** Decimal string -> fixed-point bigint, matching the backend's parseFixedPointDecimal. */
+function toFixedPoint(value: string, scale: bigint): bigint {
+  const decimals = scale.toString().length - 1;
+  const [whole, frac = ""] = value.split(".");
+  const fracPadded = (frac + "0".repeat(decimals)).slice(0, decimals);
+  return BigInt(whole || "0") * scale + BigInt(fracPadded || "0");
 }
 
 /**
- * PROVISIONAL yes/no mapping (backend team owns the final word): the API
- * exposes one tokenId per outcome (its YES token), so a NO trade is encoded
- * on the same outcomeIndex with the complementary price and flipped side —
- * which is how complementary CLOB matching treats it. Revisit when the
- * backend finalizes whether NO gets its own outcome index (per
- * ExchangeTypes.sol's "0 = NO, 1 = YES" comment).
+ * Build the typed data to sign plus the POST body (minus signature). Since the
+ * operator seeds both token books and complementary matching is off, each side
+ * trades its OWN token directly: buy = BID, sell = ASK, no price flipping.
  */
-export function buildOrderTypedData(
-  intent: OrderIntent,
-  maker: `0x${string}`,
-  chainId: number,
-) {
-  const yesSide = intent.action === "buy" ? 0 : 1; // BID : ASK
-  const side = intent.side === "yes" ? yesSide : 1 - yesSide;
-  const priceCents =
-    intent.side === "yes" ? intent.priceCents : 100 - intent.priceCents;
+export function buildOrder(intent: OrderIntent, maker: `0x${string}`, chainId: number) {
+  const orderId = crypto.randomUUID();
+  const sideNum = intent.action === "buy" ? 0 : 1; // BID : ASK
+  const priceStr = (intent.priceCents / 100).toFixed(6);
+  const amountStr = String(intent.shares);
+  const expiration = Date.now() + 24 * 60 * 60 * 1000; // ms
+  const nonce = String(Date.now());
 
-  const message = {
-    maker,
-    market: EXCHANGE_ADDRESS, // PredictionMarket addr unknown until deploy; placeholder
-    outcomeIndex: BigInt(intent.outcome.index),
-    side,
-    quantity: BigInt(Math.round(intent.shares * Number(CONTRACT_QTY_SCALE))),
-    price: BigInt(Math.round((priceCents / 100) * Number(CONTRACT_PRICE_SCALE))),
-    nonce: BigInt(Date.now()),
-    expiration: BigInt(Math.floor(Date.now() / 1000) + 24 * 60 * 60),
-    salt: randomSalt(),
-  };
-
-  return {
+  const typedData = {
     domain: {
-      name: "VeritasExchange",
+      name: "Veritas CLOB",
       version: "1",
       chainId,
       verifyingContract: EXCHANGE_ADDRESS,
     },
     types: ORDER_TYPES,
     primaryType: "Order" as const,
-    message,
+    message: {
+      orderId,
+      marketId: intent.marketId,
+      tokenId: intent.tokenId,
+      maker,
+      side: sideNum,
+      price: toFixedPoint(priceStr, PRICE_SCALE),
+      amount: toFixedPoint(amountStr, AMOUNT_SCALE),
+      expiration: BigInt(expiration),
+      nonce: BigInt(nonce),
+    },
   };
-}
 
-export type OrderMessage = ReturnType<typeof buildOrderTypedData>["message"];
+  const body: Omit<SignedOrderBody, "signature"> = {
+    orderId,
+    marketId: intent.marketId,
+    tokenId: intent.tokenId,
+    maker,
+    side: sideNum === 0 ? "BID" : "ASK",
+    price: priceStr,
+    amount: amountStr,
+    orderType: intent.orderType,
+    expiration,
+    nonce,
+  };
+
+  return { typedData, body };
+}

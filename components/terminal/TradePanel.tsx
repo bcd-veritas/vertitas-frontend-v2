@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useAccount, useChainId, useSignTypedData } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import type { ApiMarket, OrderBookData } from "@/lib/markets/types";
-import { oneDp, toCents } from "@/lib/markets/format";
+import { binaryYesOutcome, oneDp, toCents } from "@/lib/markets/format";
 import {
   walkBuy,
   walkSell,
@@ -13,7 +13,7 @@ import {
   bookDepthShares,
   complementBook,
 } from "@/lib/orders/book-math";
-import { buildOrderTypedData, type OrderIntent } from "@/lib/orders/eip712";
+import { buildOrder, type OrderIntent } from "@/lib/orders/eip712";
 import { submitEnabled, submitSignedOrder } from "@/lib/orders/data";
 import { RollingNumber } from "../profile/RollingNumber";
 import { Frame } from "./Frame";
@@ -98,6 +98,19 @@ export function TradePanel({
   // NO trades walk the complementary book (YES bids/asks mirrored at 100−p),
   // matching OutcomesPanel's "Buy no" chip and eip712's complement mapping.
   const sideBook = side === "no" ? complementBook(book) : book;
+  // The real token this order trades. Binary markets map the selected side to
+  // the Yes or No outcome token; multi-outcome only trades the outcome's own
+  // token. Null → not directly submittable (CTA blocked).
+  const orderTokenId: string | null = !outcome
+    ? null
+    : (() => {
+      const yes = binaryYesOutcome(market.outcomes);
+      if (yes) {
+        const no = market.outcomes.find((o) => o.id !== yes.id);
+        return side === "yes" ? yes.tokenId : no?.tokenId ?? null;
+      }
+      return side === "yes" ? outcome.tokenId : null;
+    })();
   const live = market.status === "ACTIVE";
   // Per lib/markets/types.ts: tickSize "10000" == 1¢; minOrderSize "1000000" == 1 share.
   const tickCents = Number(market.tickSize) / 10_000;
@@ -140,28 +153,30 @@ export function TradePanel({
                 ? `min order ${minShares} shares`
                 : null;
   const ready =
-    live && outcome && est.shares >= minShares && invalidReason == null && phase !== "signing" && phase !== "submitting";
+    live && outcome && orderTokenId && est.shares >= minShares && invalidReason == null && phase !== "signing" && phase !== "submitting";
 
   /* ---------- submit ---------- */
   const placeOrder = async () => {
-    if (!outcome || !address) return;
+    if (!outcome || !address || !orderTokenId) return;
+    // Limit orders use the typed price/size; market orders use the walked avg.
+    const priceCents = mode === "LIMIT" ? Number(limitCents) || 0 : est.avg;
+    const shares = mode === "LIMIT" ? Number(limitShares) || 0 : est.shares;
     const intent: OrderIntent = {
       marketId: market.id,
-      outcome,
-      side,
+      tokenId: orderTokenId,
       action,
       orderType: mode,
-      priceCents: est.avg,
-      shares: est.shares,
+      priceCents,
+      shares,
     };
     setError(null);
     setPhase("signing");
     try {
-      const typed = buildOrderTypedData(intent, address, chainId);
-      const signature = await signTypedDataAsync(typed);
+      const { typedData, body } = buildOrder(intent, address, chainId);
+      const signature = await signTypedDataAsync(typedData);
       if (submitEnabled) {
         setPhase("submitting");
-        await submitSignedOrder(intent, typed.message, signature);
+        await submitSignedOrder({ ...body, signature });
       }
       setPhase("done");
       if (resetTimeoutRef.current) clearTimeout(resetTimeoutRef.current);
@@ -192,9 +207,9 @@ export function TradePanel({
             ? "ORDER PLACED"
             : "ORDER SIGNED"
           : (binary
-              ? `${action} ${side}`
-              : `${action} ${side} — ${outcome?.label ?? ""}`
-            ).toUpperCase();
+            ? `${action} ${side}`
+            : `${action} ${side} — ${outcome?.label ?? ""}`
+          ).toUpperCase();
 
   const yesToneActive = side === "yes";
   // Buy shows the ask (what you pay); Sell shows the bid (what you receive).
@@ -265,7 +280,7 @@ export function TradePanel({
             role="tab"
             aria-selected={on}
             onClick={() => changeMode(m)}
-            className={`px-2.5 py-1 rounded border font-mono text-[11px] tracking-[0.14em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${on ? "text-fg bg-fg/10 border-fg/25" : "text-muted border-fg/15 bg-fg/[0.04] hover:text-fg/90 hover:border-fg/35"
+            className={`px-2.5 py-1 rounded border font-mono text-[11px] tracking-[0.14em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${on ? "text-fg bg-fg/10 border-fg/25" : "text-muted border-fg/15 bg-fg/4 hover:text-fg/90 hover:border-fg/35"
               }`}
           >
             {m}
@@ -352,14 +367,14 @@ export function TradePanel({
                   <button
                     key={d}
                     onClick={() => addChipDollars(d)}
-                    className="px-2 py-1 border border-line font-mono text-[11px] uppercase tracking-[0.1em] text-muted hover:text-fg/80 hover:border-line/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+                    className="px-2 py-1 border border-line font-mono text-[11px] uppercase tracking-widest text-muted hover:text-fg/80 hover:border-line/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
                   >
                     +${d}
                   </button>
                 ))}
               <button
                 onClick={setMax}
-                className="px-2 py-1 border border-line font-mono text-[11px] uppercase tracking-[0.1em] text-muted hover:text-fg/80 hover:border-line/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+                className="px-2 py-1 border border-line font-mono text-[11px] uppercase tracking-widest text-muted hover:text-fg/80 hover:border-line/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
               >
                 MAX
               </button>
@@ -408,7 +423,7 @@ export function TradePanel({
               />
               <button
                 onClick={setMax}
-                className="px-2 py-1 border border-line font-mono text-[11px] uppercase tracking-[0.1em] text-muted hover:text-fg/80 hover:border-line/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+                className="px-2 py-1 border border-line font-mono text-[11px] uppercase tracking-widest text-muted hover:text-fg/80 hover:border-line/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
               >
                 MAX
               </button>
@@ -452,7 +467,7 @@ export function TradePanel({
           {cta}
         </button>
         {isConnected && invalidReason && (
-          <p className="pt-2 text-center font-mono text-[11px] uppercase tracking-[0.1em] text-muted/70">
+          <p className="pt-2 text-center font-mono text-[11px] uppercase tracking-widest text-muted/70">
             {invalidReason}
           </p>
         )}
@@ -467,7 +482,7 @@ export function TradePanel({
 
       {/* footer microcopy */}
       <div className="px-5 py-4">
-        <p className="font-mono text-[11px] uppercase tracking-[0.1em] text-muted/50">
+        <p className="font-mono text-[11px] uppercase tracking-widest text-muted/50">
           {submitEnabled
             ? "orders are eip-712 signed · sim.data"
             : "orders are eip-712 signed · submission pending backend · sim.data"}
