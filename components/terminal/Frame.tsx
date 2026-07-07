@@ -44,8 +44,8 @@ export function Frame({
       {/* Label rule */}
       <div className="flex items-center justify-between gap-3 px-4 -translate-y-1/2 pointer-events-none">
         <span
-          className="pointer-events-auto bg-bg px-2 font-mono text-[11px] uppercase tracking-[0.18em] transition-colors duration-300"
-          style={{ color: tickColor ?? "var(--color-muted)" }}
+          className="pointer-events-auto bg-bg px-2 font-mono text-[13px] font-semibold uppercase tracking-[0.16em] transition-colors duration-300"
+          style={{ color: tickColor ?? "var(--color-fg)" }}
         >
           {label}
         </span>

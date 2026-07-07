@@ -113,6 +113,12 @@ export function MarketBoard({
 
   return (
     <main className="mx-auto max-w-7xl px-3 sm:px-4 py-8 w-full flex-1">
+      {/* Section header — names the board so it reads as its own section. */}
+      <div className="flex flex-wrap items-end justify-between gap-2 mb-5">
+        <PixelHeading className="text-3xl sm:text-4xl">All Markets</PixelHeading>
+        <MonoLabel>browse // filter // sort</MonoLabel>
+      </div>
+
       {/* Controls */}
       <div className="flex flex-wrap items-center gap-x-6 gap-y-3 border-b border-line pb-0 mb-6">
         <div role="tablist" aria-label="Category" className="flex flex-wrap items-center">
@@ -148,7 +154,7 @@ export function MarketBoard({
                 key={id}
                 onClick={() => setSort(id)}
                 aria-pressed={on}
-                className={`px-2.5 py-1 rounded-md font-mono text-[11px] uppercase tracking-[0.14em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${on ? "bg-accent text-bg font-semibold" : "text-muted hover:text-fg/80"
+                className={`px-2.5 py-1 rounded-md border font-mono text-[11px] uppercase tracking-[0.14em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${on ? "bg-accent text-bg border-accent font-semibold" : "border-fg/20 bg-fg/[0.04] text-muted hover:text-fg/90 hover:border-fg/45 hover:bg-fg/8"
                   }`}
               >
                 {label}

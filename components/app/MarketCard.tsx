@@ -75,7 +75,7 @@ function OutcomeRow({
   return (
     <Link
       href={href}
-      className="group/row relative z-10 flex items-baseline py-2.5 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+      className="group/row relative z-10 flex items-baseline py-2.5 px-2 -mx-2 rounded hover:bg-fg/5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
       aria-label={`Trade ${label} at ${oneDp(pct)}%`}
     >
       {row}
@@ -114,7 +114,7 @@ export function MarketCard({
 
   return (
     <article
-      className={`market-card group relative flex flex-col bg-surface/70 border border-line rounded-xl overflow-hidden transition-colors hover:border-accent/25 ${live ? "" : "opacity-60 saturate-50"
+      className={`market-card group relative flex flex-col bg-surface/70 border border-line rounded-xl overflow-hidden transition-colors cursor-pointer hover:border-accent/60 hover:bg-surface ${live ? "" : "opacity-60 saturate-50"
         }`}
     >
       {/* Probability rail — split at the leading outcome's share of the top-2 */}
@@ -150,7 +150,7 @@ export function MarketCard({
         </div>
 
         {/* Title — stretched link covers the card */}
-        <h3 className={`font-semibold text-fg leading-snug line-clamp-2 ${featured ? "text-xl" : "text-base"}`}>
+        <h3 className={`font-semibold text-fg leading-snug line-clamp-2 ${featured ? "text-2xl" : "text-lg"}`}>
           <Link
             href={href}
             className="focus-visible:outline-none after:absolute after:inset-0 after:content-['']"

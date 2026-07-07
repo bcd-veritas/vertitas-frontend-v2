@@ -65,6 +65,22 @@ body {
   background: rgba(255, 255, 255, 0.1);
 }
 
+/* Pressable affordance — Tailwind v4 no longer sets a pointer on buttons, so
+   interactive elements looked inert. Restore it wherever something is clickable. */
+button:not(:disabled),
+[role="button"],
+[role="tab"],
+a[href],
+label[for],
+summary,
+select {
+  cursor: pointer;
+}
+button:disabled,
+[aria-disabled="true"] {
+  cursor: not-allowed;
+}
+
 /* Dashboard ticker marquee — track is duplicated; -50% loops seamlessly */
 @keyframes ticker-scroll {
   from {

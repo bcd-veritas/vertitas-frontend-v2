@@ -265,7 +265,7 @@ export function TradePanel({
             role="tab"
             aria-selected={on}
             onClick={() => changeMode(m)}
-            className={`px-2 py-1 font-mono text-[11px] tracking-[0.14em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${on ? "text-fg bg-fg/5" : "text-muted hover:text-fg/80"
+            className={`px-2.5 py-1 rounded border font-mono text-[11px] tracking-[0.14em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${on ? "text-fg bg-fg/10 border-fg/25" : "text-muted border-fg/15 bg-fg/[0.04] hover:text-fg/90 hover:border-fg/35"
               }`}
           >
             {m}
@@ -367,6 +367,9 @@ export function TradePanel({
           </>
         ) : (
           <>
+            <label className="block font-mono text-[11px] uppercase tracking-[0.14em] text-muted mb-1.5">
+              limit price
+            </label>
             <div className="flex items-center gap-2">
               <button
                 aria-label="Decrease price"
@@ -391,12 +394,15 @@ export function TradePanel({
                 +
               </button>
             </div>
-            <div className="flex items-center gap-1.5 pt-2">
+            <label className="block font-mono text-[11px] uppercase tracking-[0.14em] text-muted mb-1.5 mt-4">
+              shares
+            </label>
+            <div className="flex items-center gap-1.5">
               <input
                 inputMode="decimal"
                 value={limitShares}
                 onChange={(e) => setLimitShares(sanitizeNumeric(e.target.value))}
-                placeholder="shares"
+                placeholder="0"
                 aria-label="Shares"
                 className="w-full bg-transparent font-mono text-lg text-fg placeholder:text-muted/40 focus-visible:outline-none border border-line px-2 py-1"
               />

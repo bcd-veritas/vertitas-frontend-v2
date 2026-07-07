@@ -291,7 +291,7 @@ export function FeaturedPlate({ markets }: { markets: FeaturedMarket[] }) {
       <div className="relative z-10 mx-auto max-w-7xl px-3 sm:px-4 pt-8 pb-12 w-full min-h-[75vh] flex flex-col">
         {/* Header row: heading + carousel controls with autoplay progress. */}
         <div className="flex items-center justify-between mb-6">
-          <PixelHeading className="text-xl sm:text-2xl">FEATURED MARKETS</PixelHeading>
+          <PixelHeading className="text-3xl sm:text-4xl">FEATURED MARKETS</PixelHeading>
           {len > 1 && (
             <div className="flex flex-col items-end gap-1.5">
               <div className="flex items-center gap-2">

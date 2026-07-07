@@ -202,7 +202,7 @@ export function OutcomesPanel({
                     onOpenChange(open ? null : row.outcome.id);
                   }
                 }}
-                className="relative w-full flex items-center gap-3 px-5 py-5 text-left cursor-pointer overflow-hidden hover:bg-fg/2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+                className="relative w-full flex items-center gap-3 px-5 py-5 text-left cursor-pointer overflow-hidden hover:bg-fg/5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
               >
                 {/* Timing-tower probability bar: width = live probability. */}
                 <span
