@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useAccount, useChainId, useSignTypedData } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import type { ApiMarket, OrderBookData } from "@/lib/markets/types";
-import { toCents } from "@/lib/markets/format";
+import { oneDp, toCents } from "@/lib/markets/format";
 import {
   walkBuy,
   walkSell,
@@ -14,7 +14,7 @@ import {
   complementBook,
 } from "@/lib/orders/book-math";
 import { buildOrderTypedData, type OrderIntent } from "@/lib/orders/eip712";
-import { submitEnabled, submitSignedOrder } from "@/lib/orders/submit";
+import { submitEnabled, submitSignedOrder } from "@/lib/orders/data";
 import { RollingNumber } from "../profile/RollingNumber";
 import { Frame } from "./Frame";
 import type { TradeSelection } from "./OutcomesPanel";
@@ -39,12 +39,20 @@ export function TradePanel({
   selection,
   books,
   accent,
+  binary = false,
+  action,
+  onActionChange,
 }: {
   market: ApiMarket;
   selection: TradeSelection | null;
   books: OrderBookData[];
   /** Selected outcome's rank color — floods the ticket chrome and CTA. */
   accent?: string;
+  /** Yes/No market — the outcome IS the market, so labels drop it. */
+  binary?: boolean;
+  /** Buy/Sell, owned by the page so the outcomes list can relabel its buttons. */
+  action: Action;
+  onActionChange: (a: Action) => void;
 }) {
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
@@ -52,7 +60,6 @@ export function TradePanel({
   const { openConnectModal } = useConnectModal();
 
   const [mode, setMode] = useState<Mode>("MARKET");
-  const [action, setAction] = useState<Action>("buy");
   const [amount, setAmount] = useState(""); // MARKET: $ (buy) or shares (sell)
   const [limitCents, setLimitCents] = useState(""); // LIMIT: price in cents
   const [limitShares, setLimitShares] = useState("");
@@ -127,7 +134,7 @@ export function TradePanel({
           : mode === "LIMIT" && ((Number(limitCents) || 0) <= 0 || (Number(limitShares) || 0) <= 0)
             ? null
             : mode === "LIMIT" &&
-                Math.abs((Number(limitCents) / tickCents) - Math.round(Number(limitCents) / tickCents)) > 1e-9
+              Math.abs((Number(limitCents) / tickCents) - Math.round(Number(limitCents) / tickCents)) > 1e-9
               ? `price must step by ${tickCents}¢`
               : est.shares > 0 && est.shares < minShares
                 ? `min order ${minShares} shares`
@@ -184,14 +191,15 @@ export function TradePanel({
           ? submitEnabled
             ? "ORDER PLACED"
             : "ORDER SIGNED"
-          : `${action} ${side} — ${outcome?.label ?? ""}`.toUpperCase();
+          : (binary
+              ? `${action} ${side}`
+              : `${action} ${side} — ${outcome?.label ?? ""}`
+            ).toUpperCase();
 
   const yesToneActive = side === "yes";
-  const outcomeCents = outcome
-    ? sideBook.asks[0]
-      ? Math.round(toCents(sideBook.asks[0].price))
-      : null
-    : null;
+  // Buy shows the ask (what you pay); Sell shows the bid (what you receive).
+  const outcomeLevel = action === "sell" ? sideBook.bids[0] : sideBook.asks[0];
+  const outcomeCents = outcome && outcomeLevel ? toCents(outcomeLevel.price) : null;
 
   // Wrapped setters: switching mode/action mid-error or post-done should
   // drop the stale banner/label, but never clobber an in-flight wallet
@@ -205,7 +213,7 @@ export function TradePanel({
   };
 
   const changeAction = (a: Action) => {
-    setAction(a);
+    onActionChange(a);
     if (phase === "error" || phase === "done") {
       setPhase("idle");
       setError(null);
@@ -257,9 +265,8 @@ export function TradePanel({
             role="tab"
             aria-selected={on}
             onClick={() => changeMode(m)}
-            className={`px-2 py-1 font-mono text-[11px] tracking-[0.14em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${
-              on ? "text-fg bg-fg/5" : "text-muted hover:text-fg/80"
-            }`}
+            className={`px-2 py-1 font-mono text-[11px] tracking-[0.14em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${on ? "text-fg bg-fg/5" : "text-muted hover:text-fg/80"
+              }`}
           >
             {m}
           </button>
@@ -283,16 +290,17 @@ export function TradePanel({
           className="w-2 h-2 shrink-0 transition-colors duration-300"
           style={{ background: flood }}
         />
-        <span className="text-sm text-fg truncate">{outcome?.label ?? "select an outcome"}</span>
+        <span className="text-sm text-fg truncate">
+          {outcome ? (binary ? "Yes / No" : outcome.label) : "select an outcome"}
+        </span>
         <span
-          className={`ml-auto shrink-0 px-2 py-0.5 font-mono text-[11px] uppercase tracking-[0.08em] ${
-            yesToneActive ? "bg-yes/10 text-yes" : "bg-no/10 text-no"
-          }`}
+          className={`ml-auto shrink-0 px-2 py-0.5 font-mono text-[11px] uppercase tracking-[0.08em] ${yesToneActive ? "bg-yes/10 text-yes" : "bg-no/10 text-no"
+            }`}
         >
           {side}
         </span>
         <span className="font-mono tabular-nums text-sm text-fg shrink-0">
-          {outcomeCents != null ? `${outcomeCents}¢` : "—"}
+          {outcomeCents != null ? `${oneDp(outcomeCents)}¢` : "—"}
         </span>
       </div>
 
@@ -407,7 +415,7 @@ export function TradePanel({
       <div className="flex flex-col gap-1.5 px-5 pt-4 font-mono text-[11px] uppercase tracking-[0.14em] text-muted">
         <div className="flex items-center justify-between">
           <span>avg price</span>
-          <span className="tabular-nums text-fg/85">{est.avg > 0 ? `${est.avg.toFixed(1)}¢` : "—"}</span>
+          <span className="tabular-nums text-fg/85">{est.avg > 0 ? `${oneDp(est.avg)}¢` : "—"}</span>
         </div>
         <div className="flex items-center justify-between">
           <span>{action === "buy" ? "est shares" : "est proceeds"}</span>
@@ -432,9 +440,8 @@ export function TradePanel({
           disabled={!ready && isConnected}
           onClick={isConnected ? placeOrder : openConnectModal}
           style={!ready && isConnected ? undefined : { background: flood, color: "var(--color-bg)" }}
-          className={`relative overflow-hidden w-full px-4 py-3 font-mono text-[11px] uppercase tracking-[0.14em] transition-colors duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${
-            busy ? "cta-busy" : ""
-          } ${!ready && isConnected ? "bg-fg/10 text-muted" : ""}`}
+          className={`relative overflow-hidden w-full px-4 py-3 font-mono text-[11px] uppercase tracking-[0.14em] transition-colors duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${busy ? "cta-busy" : ""
+            } ${!ready && isConnected ? "bg-fg/10 text-muted" : ""}`}
         >
           {cta}
         </button>

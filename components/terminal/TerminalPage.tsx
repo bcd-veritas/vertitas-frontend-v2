@@ -5,7 +5,7 @@ import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useGSAP } from "@gsap/react";
 import type { ApiMarket, OrderBookData, PricePoint } from "@/lib/markets/types";
-import { rankedOutcomes } from "@/lib/markets/format";
+import { binaryYesOutcome, rankedOutcomes } from "@/lib/markets/format";
 import { usePrefersReducedMotion } from "../landing/usePrefersReducedMotion";
 import { Topbar } from "../app/Topbar";
 import { rankRows, colorMap } from "./rank";
@@ -31,14 +31,20 @@ export function TerminalPage({
   series: PricePoint[][];
 }) {
   const [selection, setSelection] = useState<TradeSelection | null>(() => {
-    const ranked = rankedOutcomes(market);
-    const top = ranked[0]?.outcome;
+    // Binary markets always arm the YES outcome (the No row is a phantom the
+    // page hides); otherwise default to the top-priced outcome.
+    const top = binaryYesOutcome(market.outcomes) ?? rankedOutcomes(market)[0]?.outcome;
     return top ? { outcomeId: top.id, side: "yes" } : null;
   });
+  const binary = binaryYesOutcome(market.outcomes) != null;
 
   // Expanded tower row — while open, the whole page focuses on it: the hero
   // readout rolls to its chance, and the waves + ticket retint to its color.
   const [openKey, setOpenKey] = useState<string | null>(null);
+
+  // Buy/Sell lives here so the trade ticket AND the outcomes-list buttons
+  // (Buy Yes/No ↔ Sell Yes/No) stay in lockstep.
+  const [action, setAction] = useState<"buy" | "sell">("buy");
 
   // One ranking, one palette: hero, chart, tower, and ticket all read from it.
   const rows = useMemo(
@@ -118,6 +124,8 @@ export function TerminalPage({
                 onSelect={handleSelect}
                 openKey={openKey}
                 onOpenChange={handleOpenChange}
+                binary={binary}
+                action={action}
               />
             </div>
             <div data-rise>
@@ -136,6 +144,9 @@ export function TerminalPage({
                 selection={selection}
                 books={books}
                 accent={ticketColor}
+                binary={binary}
+                action={action}
+                onActionChange={setAction}
               />
             </div>
             <div data-rise>

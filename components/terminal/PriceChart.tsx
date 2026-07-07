@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { ApiOutcome, PricePoint } from "@/lib/markets/types";
+import { oneDp } from "@/lib/markets/format";
 import { ProbabilityChart, type ChartSeries } from "../charts/ProbabilityChart";
 import { CHART_PALETTE } from "../charts/palette";
 import { Frame } from "./Frame";
@@ -148,7 +149,7 @@ export function PriceChart({
                 />
                 {r.label}
                 <span className={`tabular-nums ${off ? "text-muted/40" : "text-muted"}`}>
-                  {Math.round(r.lastPct)}%
+                  {oneDp(r.lastPct)}%
                 </span>
               </button>
             );

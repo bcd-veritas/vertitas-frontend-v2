@@ -6,7 +6,7 @@ import { ArrowUpRight, ChevronLeft, ChevronRight } from "lucide-react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import type { FeaturedMarket } from "@/lib/markets/types";
-import { closesLabel, formatVol, rankedOutcomes } from "@/lib/markets/format";
+import { closesLabel, formatVol, oneDp, rankedOutcomes } from "@/lib/markets/format";
 import { CHART_PALETTE } from "../charts/palette";
 import { CategoryIcon } from "./categoryIcon";
 import { MonoLabel } from "../landing/ui/MonoLabel";
@@ -367,7 +367,7 @@ export function FeaturedPlate({ markets }: { markets: FeaturedMarket[] }) {
                         opacity: highlight == null || highlight === s.rank ? 1 : 0.35,
                       }}
                     >
-                      {s.pct != null ? `${s.pct}%` : "—"}
+                      {s.pct != null ? `${oneDp(s.pct)}%` : "—"}
                     </span>
                   </span>
                 );

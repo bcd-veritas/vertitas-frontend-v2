@@ -14,6 +14,8 @@ type RollingNumberProps = {
   signed?: boolean;
   currency?: boolean;
   decimals?: number;
+  /** Minimum fraction digits; set below `decimals` to trim trailing zeros (50.0 → 50). Defaults to `decimals`. */
+  minDecimals?: number;
   suffix?: string;
 };
 
@@ -23,12 +25,13 @@ function formatValue(
     signed,
     currency,
     decimals,
+    minDecimals,
     suffix,
-  }: Required<Pick<RollingNumberProps, "signed" | "currency" | "decimals" | "suffix">>,
+  }: Required<Pick<RollingNumberProps, "signed" | "currency" | "decimals" | "minDecimals" | "suffix">>,
 ): string {
   const sign = value < 0 ? "−" : signed ? "+" : "";
   const body = Math.abs(value).toLocaleString("en-US", {
-    minimumFractionDigits: decimals,
+    minimumFractionDigits: minDecimals,
     maximumFractionDigits: decimals,
   });
   return `${sign}${currency ? "$" : ""}${body}${suffix}`;
@@ -100,10 +103,17 @@ export function RollingNumber({
   signed = false,
   currency = false,
   decimals = 0,
+  minDecimals,
   suffix = "",
 }: RollingNumberProps) {
   const reduce = usePrefersReducedMotion();
-  const text = formatValue(value, { signed, currency, decimals, suffix });
+  const text = formatValue(value, {
+    signed,
+    currency,
+    decimals,
+    minDecimals: minDecimals ?? decimals,
+    suffix,
+  });
 
   if (reduce) {
     return <span className={`${className} tabular-nums`}>{text}</span>;

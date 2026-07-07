@@ -1,7 +1,7 @@
 "use client";
 
 import type { BookLevel, OrderBookData } from "@/lib/markets/types";
-import { centsLabel, sharesLabel, toCents } from "@/lib/markets/format";
+import { centsLabel, oneDp, sharesLabel, toCents } from "@/lib/markets/format";
 
 const MAX_ROWS = 8;
 
@@ -55,9 +55,9 @@ export function Ladder({ book }: { book: OrderBookData }) {
   const bestBid = bids[0] ? toCents(bids[0].price) : null;
   const bestAsk = asks[0] ? toCents(asks[0].price) : null;
   const spread =
-    bestBid != null && bestAsk != null ? Math.round(bestAsk - bestBid) : null;
+    bestBid != null && bestAsk != null ? bestAsk - bestBid : null;
   const mid =
-    bestBid != null && bestAsk != null ? Math.round((bestAsk + bestBid) / 2) : null;
+    bestBid != null && bestAsk != null ? (bestAsk + bestBid) / 2 : null;
 
   if (bids.length === 0 && asks.length === 0) {
     return (
@@ -85,12 +85,26 @@ export function Ladder({ book }: { book: OrderBookData }) {
           side="ask"
         />
       ))}
+      {asks.length > 0 && (
+        <div className="flex justify-end mr-2 pt-1.5 pb-0.5">
+          <span className="rounded-full bg-no/10 text-red-400 px-3 py-0.5 font-mono text-[10px] uppercase tracking-[0.16em]">
+            asks
+          </span>
+        </div>
+      )}
 
       <div className="my-1 border-y border-line/60 px-5 py-1.5 text-center font-mono text-[10px] uppercase tracking-[0.18em] text-muted tabular-nums">
-        {spread != null ? `spread ${spread}¢ · mid ${mid}¢` : "spread — · one-sided book"}
+        {spread != null ? `spread ${oneDp(spread)}¢ · mid ${oneDp(mid!)}¢` : "spread — · one-sided book"}
       </div>
 
       {/* Bids: best bid touching the spread row, worst at the bottom. */}
+      {bids.length > 0 && (
+        <div className="flex justify-end mr-2 pt-0.5 pb-1.5">
+          <span className="rounded-full bg-yes/10 text-green-400 px-3 py-0.5 font-mono text-[10px] uppercase tracking-[0.16em]">
+            bids
+          </span>
+        </div>
+      )}
       {bids.map((l, i) => (
         <LadderRow key={`b-${l.price}`} level={l} cum={bidCum[i]} maxCum={maxCum} side="bid" />
       ))}
