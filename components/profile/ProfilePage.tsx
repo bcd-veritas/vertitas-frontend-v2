@@ -14,7 +14,7 @@ import { GradientAvatar } from "./GradientAvatar";
 import { HeroValue } from "./HeroValue";
 import { PnlChart } from "../charts/PnlChart";
 import { MetricBlocks } from "./MetricBlocks";
-import { ActivityTable } from "./ActivityTable";
+import { PortfolioTable } from "./PortfolioTable";
 import { RollingNumber } from "./RollingNumber";
 
 export function ProfilePage({ markets }: { markets: ApiMarket[] }) {
@@ -161,7 +161,11 @@ export function ProfilePage({ markets }: { markets: ApiMarket[] }) {
           </div>
         </section>
 
-        <ActivityTable rows={profile.activity} />
+        <PortfolioTable
+          positions={profile.positions}
+          openOrders={profile.openOrders}
+          history={profile.activity}
+        />
       </main>
       <SystemFooter markets={markets} />
 

@@ -12,6 +12,32 @@ export type ActivityRow = {
   priceCents: number;
 };
 
+/** An open holding built up from matched trades. */
+export type PositionRow = {
+  id: string;
+  marketId: string;
+  market: string;
+  outcome: string;
+  shares: number;
+  /** Average entry price, whole cents. */
+  avgCostCents: number;
+  /** Latest market price for the outcome, whole cents. */
+  curPriceCents: number;
+};
+
+/** A resting order sitting in a market's book. */
+export type OpenOrderRow = {
+  id: string;
+  marketId: string;
+  market: string;
+  outcome: string;
+  side: "BUY" | "SELL";
+  priceCents: number;
+  shares: number;
+  /** 0 = fully open, else partially filled. */
+  filledShares: number;
+};
+
 export type ProfileMock = {
   /** Always null this round — exercises the address-fallback path. */
   username: string | null;
@@ -22,6 +48,10 @@ export type ProfileMock = {
   volumeTradedCents: number;
   marketsTraded: number;
   winRatePct: number;
+  /** Current open holdings. */
+  positions: PositionRow[];
+  /** Current resting orders. */
+  openOrders: OpenOrderRow[];
   /** 12 rows, newest first. */
   activity: ActivityRow[];
 };
@@ -94,6 +124,42 @@ export function mockProfile(address: string): ProfileMock {
     };
   });
 
+  const positions: PositionRow[] = Array.from(
+    { length: 4 + Math.floor(rng() * 4) },
+    (_, i): PositionRow => {
+      const avgCostCents = 5 + Math.floor(rng() * 90);
+      const curPriceCents = Math.max(1, Math.min(99, avgCostCents + Math.floor((rng() - 0.5) * 44)));
+      const m = Math.floor(rng() * MARKET_TITLES.length);
+      return {
+        id: `pos_${i + 1}`,
+        marketId: `mkt_${m}`,
+        market: MARKET_TITLES[m],
+        outcome: OUTCOME_LABELS[Math.floor(rng() * OUTCOME_LABELS.length)],
+        shares: 10 + Math.floor(rng() * 500),
+        avgCostCents,
+        curPriceCents,
+      };
+    },
+  );
+
+  const openOrders: OpenOrderRow[] = Array.from(
+    { length: 2 + Math.floor(rng() * 4) },
+    (_, i): OpenOrderRow => {
+      const shares = 20 + Math.floor(rng() * 400);
+      const m = Math.floor(rng() * MARKET_TITLES.length);
+      return {
+        id: `ord_${i + 1}`,
+        marketId: `mkt_${m}`,
+        market: MARKET_TITLES[m],
+        outcome: OUTCOME_LABELS[Math.floor(rng() * OUTCOME_LABELS.length)],
+        side: rng() < 0.5 ? "BUY" : "SELL",
+        priceCents: 3 + Math.floor(rng() * 94),
+        shares,
+        filledShares: rng() < 0.4 ? Math.floor(shares * rng() * 0.8) : 0,
+      };
+    },
+  );
+
   return {
     username: null,
     portfolioValueCents,
@@ -102,6 +168,8 @@ export function mockProfile(address: string): ProfileMock {
     volumeTradedCents,
     marketsTraded,
     winRatePct,
+    positions,
+    openOrders,
     activity,
   };
 }
