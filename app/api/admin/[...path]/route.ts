@@ -4,7 +4,7 @@ import type { NextRequest } from "next/server";
  * Server-side proxy for the middleware's admin dashboard endpoints. The browser
  * calls same-origin `/api/admin/*`; this handler forwards to the middleware with
  * the `x-admin-key` header injected from a server-only env var, so the key never
- * reaches client code. Read-only: GET only.
+ * reaches client code. GET (dashboard reads) + POST (create-market).
  *
  * `ADMIN_API_KEY` (NOT NEXT_PUBLIC_) must match the middleware's ADMIN_API_KEY.
  */
@@ -27,6 +27,34 @@ export async function GET(
     });
     const body = await upstream.text();
     return new Response(body, {
+      status: upstream.status,
+      headers: {
+        "content-type":
+          upstream.headers.get("content-type") ?? "application/json",
+      },
+    });
+  } catch {
+    return Response.json({ error: "Upstream unavailable" }, { status: 502 });
+  }
+}
+
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ path: string[] }> },
+) {
+  const { path } = await params;
+  const target = `${API}/admin/${path.join("/")}${request.nextUrl.search}`;
+  const body = await request.text();
+
+  try {
+    const upstream = await fetch(target, {
+      method: "POST",
+      headers: { "x-admin-key": ADMIN_KEY, "content-type": "application/json" },
+      body,
+      cache: "no-store",
+    });
+    const text = await upstream.text();
+    return new Response(text, {
       status: upstream.status,
       headers: {
         "content-type":
