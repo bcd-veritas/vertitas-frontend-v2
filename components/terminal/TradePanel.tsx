@@ -99,9 +99,9 @@ export function TradePanel({
   // matching OutcomesPanel's "Buy no" chip and eip712's complement mapping.
   const sideBook = side === "no" ? complementBook(book) : book;
   const live = market.status === "ACTIVE";
-  // Per lib/markets/types.ts: tickSize "10000" == 1¢; minOrderSize "1000000" == 1 share.
-  const tickCents = Number(market.tickSize) / 10_000;
-  const minShares = Number(market.minOrderSize) / 1_000_000;
+  // Per lib/markets/types.ts: tickSize "1000000" == 1¢ (price units); minOrderSize "100000000" == 1 share (amount units).
+  const tickCents = Number(market.tickSize) / 1_000_000;
+  const minShares = Number(market.minOrderSize) / 100_000_000;
 
   /* ---------- derived order math ---------- */
   const est = useMemo(() => {
