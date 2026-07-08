@@ -27,8 +27,8 @@ export type ApiMarket = {
   outcomes: ApiOutcome[];
   resolutionSource: string;
   conditionId: string | null;
-  tickSize: string; // fixed-point, "10000" = 1¢
-  minOrderSize: string; // fixed-point shares, "1000000" = 1 share
+  tickSize: string; // fixed-point price units, "1000000" = 1¢
+  minOrderSize: string; // fixed-point amount units, "100000000" = 1 share
 };
 
 // featured part
