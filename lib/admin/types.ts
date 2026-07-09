@@ -1,8 +1,30 @@
 // veritas-middleware admin dashboard endpoints (src/api/modules/admin/
 // admin-dashboard.routes.ts).
 
+export type Role = "USER" | "ADMIN" | "SUPERADMIN" | "VOTER" | "ORACLE_PARTICIPANT";
+
 // GET /admin/access?wallet=0x...
-export type AccessResponse = { isAdmin: boolean };
+export type AccessResponse = { isAdmin: boolean; role: Role | null };
+
+// GET /admin/users?page&limit&search
+export type UserRow = {
+  id: string;
+  walletAddress: string;
+  username: string | null;
+  email: string | null;
+  role: Role;
+  collateralAvailable: string; // 6-dec BigInt string
+  collateralLocked: string; // 6-dec BigInt string
+  createdAt: string; // ISO
+};
+
+export type UsersResponse = {
+  items: UserRow[];
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+};
 
 // GET /admin/stats
 export type StatsResponse = {

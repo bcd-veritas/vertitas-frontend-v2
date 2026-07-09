@@ -2,8 +2,11 @@ import type {
   AccessResponse,
   MarketsResponse,
   RecentMarketsResponse,
+  Role,
   StatsResponse,
   TimeseriesResponse,
+  UserRow,
+  UsersResponse,
 } from "./types";
 
 // Calls the same-origin Next.js proxy (app/api/admin/[...path]/route.ts), which
@@ -35,4 +38,27 @@ export function getAdminMarkets(page = 1, limit = 20): Promise<MarketsResponse> 
 
 export function getRecentMarkets(limit = 8): Promise<RecentMarketsResponse> {
   return getJson(`/recent-markets?limit=${limit}`);
+}
+
+export function getAdminUsers(page = 1, limit = 20, search = ""): Promise<UsersResponse> {
+  const q = new URLSearchParams({ page: String(page), limit: String(limit) });
+  if (search.trim()) q.set("search", search.trim());
+  return getJson(`/users?${q.toString()}`);
+}
+
+export async function setUserRole(
+  id: string,
+  role: Role,
+  actorWallet: string,
+): Promise<UserRow> {
+  const res = await fetch(`/api/admin/users/${id}/role`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ role, actorWallet }),
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? `Role update failed (${res.status})`);
+  }
+  return (await res.json()) as UserRow;
 }

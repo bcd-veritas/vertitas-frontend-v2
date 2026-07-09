@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, LineChart, Plus } from "lucide-react";
+import { LayoutDashboard, LineChart, Plus, Users } from "lucide-react";
 
 const LINKS = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/markets", label: "Markets", icon: LineChart },
   { href: "/admin/markets/create-market", label: "Create Market", icon: Plus },
+  { href: "/admin/users", label: "Users", icon: Users },
 ];
 
 export function AdminNav() {
