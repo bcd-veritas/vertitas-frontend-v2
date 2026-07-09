@@ -5,8 +5,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAccount } from "wagmi";
 
 import { Frame } from "@/components/terminal/Frame";
-import { getAdminAccess, getAdminUsers, setUserRole } from "@/lib/admin/data";
-import type { Role, UserRow } from "@/lib/admin/types";
+import {
+  getAdminAccess,
+  getAdminUsers,
+  getWhitelistStatus,
+  setUserRole,
+  syncUserWhitelist,
+} from "@/lib/admin/data";
+import type { Role, UserRow, WhitelistStatusItem } from "@/lib/admin/types";
 
 const ROLE_COLOR: Record<Role, string> = {
   USER: "#a89f9c",
@@ -46,6 +52,53 @@ function isRowEditable(
   return true;
 }
 
+function isOracleRole(role: Role): boolean {
+  return role === "VOTER" || role === "ORACLE_PARTICIPANT";
+}
+
+function ChainPill({
+  item,
+  syncing,
+  onRetry,
+}: {
+  item: WhitelistStatusItem | undefined;
+  syncing: boolean;
+  onRetry: () => void;
+}) {
+  if (syncing) {
+    return <span className="font-mono text-[10px] uppercase tracking-wider text-muted">syncing…</span>;
+  }
+  if (!item) {
+    return <span className="font-mono text-[10px] text-muted">…</span>;
+  }
+  if (item.status === "unknown") {
+    return (
+      <button
+        onClick={onRetry}
+        className="cursor-pointer font-mono text-[10px] uppercase tracking-wider text-muted hover:text-fg"
+      >
+        unknown ↻
+      </button>
+    );
+  }
+  if (item.inSync) {
+    return (
+      <span className="font-mono text-[10px] uppercase tracking-wider" style={{ color: "#7fae8b" }}>
+        on-chain ✓
+      </span>
+    );
+  }
+  return (
+    <button
+      onClick={onRetry}
+      className="cursor-pointer font-mono text-[10px] uppercase tracking-wider hover:opacity-80"
+      style={{ color: "#c97a6d" }}
+    >
+      drift ⚠ retry ↻
+    </button>
+  );
+}
+
 export function UsersTable() {
   const [search, setSearch] = useState("");
   const [debounced, setDebounced] = useState("");
@@ -76,14 +129,41 @@ export function UsersTable() {
   });
   const actorRole = access?.role ?? null;
 
+  // On-chain status is fetched separately from the (DB-only) users list, so a
+  // dead RPC never breaks the table — it just yields no status items.
+  const oracleIds = (data?.items ?? [])
+    .filter((u) => isOracleRole(u.role))
+    .map((u) => u.id);
+
+  const { data: whitelist } = useQuery({
+    queryKey: ["admin-whitelist-status", [...oracleIds].sort()],
+    queryFn: () => getWhitelistStatus(oracleIds),
+    enabled: oracleIds.length > 0,
+    refetchInterval: 30_000,
+  });
+
+  const statusById = new Map<string, WhitelistStatusItem>(
+    (whitelist?.items ?? []).map((s) => [s.id, s]),
+  );
+
   const [pending, setPending] = useState<{ user: UserRow; newRole: Role } | null>(null);
 
   const mutation = useMutation({
     mutationFn: ({ user, newRole }: { user: UserRow; newRole: Role }) =>
       setUserRole(user.id, newRole, address as string),
-    onSuccess: () => {
+    onSuccess: (_result, variables) => {
       queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+      if (isOracleRole(variables.newRole) || isOracleRole(variables.user.role)) {
+        syncMutation.mutate(variables.user.id);
+      }
       setPending(null);
+    },
+  });
+
+  const syncMutation = useMutation({
+    mutationFn: (userId: string) => syncUserWhitelist(userId),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-whitelist-status"] });
     },
   });
 
@@ -121,6 +201,7 @@ export function UsersTable() {
                   <th className="pb-2 pr-3 font-normal">Wallet</th>
                   <th className="px-2 font-normal">Username</th>
                   <th className="px-2 font-normal">Role</th>
+                  <th className="px-2 font-normal">Chain</th>
                   <th className="pl-2 text-right font-normal">Joined</th>
                 </tr>
               </thead>
@@ -152,6 +233,17 @@ export function UsersTable() {
                       ) : (
                         <RoleBadge role={u.role} />
                       )}
+                    </td>
+                    <td className="px-2">
+                      {isOracleRole(u.role) ? (
+                        <ChainPill
+                          item={statusById.get(u.id)}
+                          syncing={
+                            syncMutation.isPending && syncMutation.variables === u.id
+                          }
+                          onRetry={() => syncMutation.mutate(u.id)}
+                        />
+                      ) : null}
                     </td>
                     <td className="pl-2 text-right font-mono text-xs tabular-nums text-muted">
                       {new Date(u.createdAt).toLocaleDateString()}

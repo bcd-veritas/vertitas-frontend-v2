@@ -90,3 +90,36 @@ export type RecentMarket = {
 };
 
 export type RecentMarketsResponse = { items: RecentMarket[] };
+
+// GET /admin/users/whitelist-status?ids=...
+export type WhitelistFlags = {
+  committee: boolean;
+  proposer: boolean;
+  disputer: boolean;
+};
+
+export type WhitelistStatusItem =
+  | {
+      id: string;
+      status: "known";
+      expected: WhitelistFlags;
+      actual: WhitelistFlags;
+      inSync: boolean;
+    }
+  | {
+      id: string;
+      status: "unknown";
+      expected: WhitelistFlags;
+      actual: null;
+      inSync: false;
+    };
+
+export type WhitelistStatusResponse = { items: WhitelistStatusItem[] };
+
+// POST /admin/users/:id/whitelist-sync
+export type WhitelistSyncResult = {
+  status: "synced" | "failed" | "noop";
+  calls: string[];
+  txHashes: string[];
+  error?: string;
+};
