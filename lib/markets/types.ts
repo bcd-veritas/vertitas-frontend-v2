@@ -107,3 +107,14 @@ export type PricePoint = {
   quantity: string;
   createdAt: string;
 };
+
+// GET /trades?marketId=&limit= (public) — recent trades for a market
+export type MarketTrade = {
+  id: string;
+  outcomeIndex: number;
+  price: string; // 1e8 fixed-point
+  quantity: string; // shares, fixed-point
+  buyerWallet: string;
+  sellerWallet: string;
+  createdAt: string; // ISO
+};

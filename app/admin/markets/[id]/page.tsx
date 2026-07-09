@@ -6,6 +6,7 @@ import { ChevronLeft } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
 import { Frame } from "@/components/terminal/Frame";
+import { TradingTab } from "@/components/admin/market/TradingTab";
 import { centsLabel } from "@/lib/markets/format";
 import { getMarketDetail } from "@/lib/admin/data";
 import type { MarketDetail } from "@/lib/admin/types";
@@ -144,7 +145,13 @@ export default function MarketDetailPage({ params }: { params: Promise<{ id: str
         ))}
       </div>
 
-      {tab === "Overview" ? <Overview m={m} /> : <Stub name={tab} />}
+      {tab === "Overview" ? (
+        <Overview m={m} />
+      ) : tab === "Trading" ? (
+        <TradingTab marketId={id} />
+      ) : (
+        <Stub name={tab} />
+      )}
     </div>
   );
 }

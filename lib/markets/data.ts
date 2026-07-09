@@ -5,6 +5,7 @@ import type {
   FeaturedComment,
   FeaturedMarket,
   MarketDTO,
+  MarketTrade,
   OrderBookData,
   OutcomeDTO,
   PricePoint,
@@ -186,6 +187,22 @@ export async function getPriceHistory(
 
     // for chart
     return items.slice(0, maxPoints).reverse();
+  } catch {
+    return [];
+  }
+}
+
+export async function getMarketTrades(
+  marketId: string,
+  limit = 30,
+): Promise<MarketTrade[]> {
+  try {
+    const res = await fetch(
+      `${envPath}/trades?marketId=${encodeURIComponent(marketId)}&limit=${limit}`,
+    );
+    if (!res.ok) return [];
+    const data = await res.json();
+    return (data.items ?? []) as MarketTrade[];
   } catch {
     return [];
   }
