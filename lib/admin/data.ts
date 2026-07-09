@@ -1,5 +1,7 @@
 import type {
   AccessResponse,
+  MarketDetail,
+  MarketListOpts,
   MarketsResponse,
   RecentMarketsResponse,
   Role,
@@ -34,8 +36,22 @@ export function getAdminTimeseries(
   return getJson(`/timeseries?range=${range}&bucket=${bucket}`);
 }
 
-export function getAdminMarkets(page = 1, limit = 20): Promise<MarketsResponse> {
-  return getJson(`/markets?page=${page}&limit=${limit}`);
+export function getAdminMarkets(
+  page = 1,
+  limit = 20,
+  opts: MarketListOpts = {},
+): Promise<MarketsResponse> {
+  const q = new URLSearchParams({ page: String(page), limit: String(limit) });
+  if (opts.status) q.set("status", opts.status);
+  if (opts.resolverType) q.set("resolverType", opts.resolverType);
+  if (opts.category?.trim()) q.set("category", opts.category.trim());
+  if (opts.search?.trim()) q.set("search", opts.search.trim());
+  if (opts.sort) q.set("sort", opts.sort);
+  return getJson(`/markets?${q.toString()}`);
+}
+
+export function getMarketDetail(id: string): Promise<MarketDetail> {
+  return getJson(`/markets/${encodeURIComponent(id)}`);
 }
 
 export function getRecentMarkets(limit = 8): Promise<RecentMarketsResponse> {

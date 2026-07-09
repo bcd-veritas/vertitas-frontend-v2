@@ -67,6 +67,11 @@ export type MarketHealth = {
   category: string | null;
   endTime: string; // ISO
   volume: string; // 6-dec BigInt string
+  resolverType: string;
+  createdAt: string; // ISO
+  resolvedAt: string | null;
+  disputedAt: string | null;
+  attention: string[];
   yes: SideHealth;
   no: SideHealth;
 };
@@ -77,6 +82,58 @@ export type MarketsResponse = {
   limit: number;
   total: number;
   totalPages: number;
+};
+
+export type MarketListOpts = {
+  status?: string;
+  category?: string;
+  resolverType?: string;
+  search?: string;
+  sort?: string;
+};
+
+// GET /admin/markets/:id
+export type MarketDetailOutcome = {
+  index: number;
+  label: string;
+  tokenId: string;
+  price: string | null;
+  bestBid: string | null;
+  bestAsk: string | null;
+  spread: string | null;
+  openInterest: string | null;
+};
+
+export type MarketDetail = {
+  id: string;
+  title: string;
+  description: string | null;
+  category: string | null;
+  isFeatured: boolean;
+  status: string;
+  winningOutcome: number | null;
+  volume: string;
+  createdAt: string;
+  endTime: string;
+  expiresAt: string | null;
+  resolvedAt: string | null;
+  disputedAt: string | null;
+  resolverType: string;
+  resolutionSource: string;
+  resolverData: string | null;
+  feeBps: number;
+  tickSize: string;
+  minOrderSize: string;
+  maxOrderSize: string | null;
+  outcomeCount: number;
+  marketAddress: string;
+  contractAddress: string;
+  conditionId: string | null;
+  resolutionRouter: string | null;
+  collateralToken: string;
+  owner: string;
+  attention: string[];
+  outcomes: MarketDetailOutcome[];
 };
 
 // GET /admin/recent-markets?limit=N  → newest-first
