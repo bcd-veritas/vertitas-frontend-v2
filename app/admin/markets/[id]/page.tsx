@@ -7,7 +7,8 @@ import { useQuery } from "@tanstack/react-query";
 
 import { Frame } from "@/components/terminal/Frame";
 import { TradingTab } from "@/components/admin/market/TradingTab";
-import { centsLabel } from "@/lib/markets/format";
+import { ParticipantsTab } from "@/components/admin/market/ParticipantsTab";
+import { centsLabel, sharesLabel } from "@/lib/markets/format";
 import { getMarketDetail } from "@/lib/admin/data";
 import type { MarketDetail } from "@/lib/admin/types";
 
@@ -64,7 +65,7 @@ function Overview({ m }: { m: MarketDetail }) {
                 <td className="py-2 text-fg">{o.label}</td>
                 <td className="text-right font-mono text-xs tabular-nums text-fg/80">{o.price ? centsLabel(o.price) : "—"}</td>
                 <td className="text-right font-mono text-xs tabular-nums text-muted">{o.spread ? centsLabel(o.spread) : "—"}</td>
-                <td className="text-right font-mono text-xs tabular-nums text-muted">{o.openInterest ?? "—"}</td>
+                <td className="text-right font-mono text-xs tabular-nums text-muted">{o.openInterest ? sharesLabel(o.openInterest) : "—"}</td>
               </tr>
             ))}
           </tbody>
@@ -149,6 +150,8 @@ export default function MarketDetailPage({ params }: { params: Promise<{ id: str
         <Overview m={m} />
       ) : tab === "Trading" ? (
         <TradingTab marketId={id} />
+      ) : tab === "Participants" ? (
+        <ParticipantsTab market={m} />
       ) : (
         <Stub name={tab} />
       )}

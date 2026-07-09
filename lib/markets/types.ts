@@ -118,3 +118,22 @@ export type MarketTrade = {
   sellerWallet: string;
   createdAt: string; // ISO
 };
+
+// GET /markets/:id/top-holders (public) — positions with holdings > 0, incl. user
+export type MarketHolder = {
+  id: string;
+  walletAddress: string;
+  outcomeIndex: number;
+  availableAmount: string; // shares, fixed-point
+  lockedAmount: string;
+  averageCost: string | null; // 1e8 fixed-point, or null
+  user: { id: string; username: string | null } | null;
+};
+
+export type MarketHoldersResponse = {
+  items: MarketHolder[];
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+};

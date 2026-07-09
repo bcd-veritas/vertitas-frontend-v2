@@ -5,6 +5,7 @@ import type {
   FeaturedComment,
   FeaturedMarket,
   MarketDTO,
+  MarketHoldersResponse,
   MarketTrade,
   OrderBookData,
   OutcomeDTO,
@@ -205,5 +206,29 @@ export async function getMarketTrades(
     return (data.items ?? []) as MarketTrade[];
   } catch {
     return [];
+  }
+}
+
+export async function getTopHolders(
+  marketId: string,
+  page = 1,
+  limit = 20,
+): Promise<MarketHoldersResponse> {
+  const empty: MarketHoldersResponse = { items: [], page, limit, total: 0, totalPages: 0 };
+  try {
+    const res = await fetch(
+      `${envPath}/markets/${encodeURIComponent(marketId)}/top-holders?page=${page}&limit=${limit}`,
+    );
+    if (!res.ok) return empty;
+    const data = await res.json();
+    return {
+      items: data.items ?? [],
+      page: data.page ?? page,
+      limit: data.limit ?? limit,
+      total: data.total ?? 0,
+      totalPages: data.totalPages ?? 0,
+    };
+  } catch {
+    return empty;
   }
 }

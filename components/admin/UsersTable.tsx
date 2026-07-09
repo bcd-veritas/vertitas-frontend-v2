@@ -207,7 +207,7 @@ export function UsersTable() {
               </thead>
               <tbody>
                 {data.items.map((u: UserRow) => (
-                  <tr key={u.id} className="border-t border-line/60 hover:bg-fg/[0.03]">
+                  <tr key={u.id} className="border-t border-line/60 hover:bg-fg/3">
                     <td className="py-2.5 pr-3 font-mono text-xs text-fg" title={u.walletAddress}>
                       {short(u.walletAddress)}
                     </td>

@@ -26,7 +26,7 @@ export function TradeTape({
     return <p className="font-mono text-xs text-muted">No trades yet.</p>;
   }
   return (
-    <div className="max-h-[36rem] overflow-auto">
+    <div className="max-h-144 overflow-auto">
       <table className="w-full text-left text-sm">
         <thead className="font-mono text-[10px] uppercase tracking-wider text-muted">
           <tr>
