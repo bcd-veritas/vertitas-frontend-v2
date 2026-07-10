@@ -113,7 +113,7 @@ export function FundsPanel() {
             <FundBtn onClick={() => openFund("operator")} />
           </div>
         </div>
-        <Line label="ETH" value={fmtUnits(data.operator.eth, 18, 4)} />
+        <Line label="Sepolia ETH" value={fmtUnits(data.operator.eth, 18, 4)} />
         <Line label={"USDCC (≈ VTK mintable)"} value={fmtUnits(data.operator.usdcc, data.usdccDecimals)} />
         <Line label="VTK" value={fmtUnits(data.operator.vtk, data.vtkDecimals)} />
       </Frame>
@@ -134,13 +134,16 @@ export function FundsPanel() {
           <AddrLink address={data.vault.address} />
         </div>
         <Line label="USDCC (backing)" value={fmtUnits(data.vault.usdcc, data.usdccDecimals)} />
+        <p className="mt-2 font-mono text-[10px] leading-relaxed text-muted">
+          Holds the USDCC that backs every VTK 1:1 — minted on deposit, released on redeem.
+        </p>
       </Frame>
 
       <Frame label="Solvency" className="p-4">
         <div className="mb-2">
           {data.solvency.inSync ? <Badge text="in sync ✓" color="#7fae8b" /> : <Badge text="mismatch ⚠" color="#c97a6d" />}
         </div>
-        <Line label="VTK supply" value={fmtUnits(data.solvency.vtkSupply, data.vtkDecimals)} />
+        <Line label="Total VTK supply in environment" value={fmtUnits(data.solvency.vtkSupply, data.vtkDecimals)} />
         <Line label="Vault USDCC" value={fmtUnits(data.solvency.vaultUsdcc, data.usdccDecimals)} />
       </Frame>
 
@@ -170,6 +173,9 @@ export function FundsPanel() {
               Deposit <span className="text-fg">{amount || "0"}</span> USDCC → mint{" "}
               <span className="text-fg">{amount || "0"}</span> VTK to{" "}
               <span className="text-fg">{fundDest}</span>.
+            </p>
+            <p className="mt-1.5 font-mono text-[10px] leading-relaxed text-muted">
+              USDCC is deducted from the operator EOA.
             </p>
             {exceedsReserve ? (
               <p className="mt-2 font-mono text-[11px] text-no">Exceeds operator USDCC.</p>
