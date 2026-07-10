@@ -1,5 +1,6 @@
 import type {
   AccessResponse,
+  FundsResponse,
   MarketDetail,
   MarketListOpts,
   MarketsResponse,
@@ -100,4 +101,8 @@ export async function syncUserWhitelist(id: string): Promise<WhitelistSyncResult
     throw new Error(body.error ?? `Whitelist sync failed (${res.status})`);
   }
   return (await res.json()) as WhitelistSyncResult;
+}
+
+export function getAdminFunds(): Promise<FundsResponse> {
+  return getJson(`/funds`);
 }

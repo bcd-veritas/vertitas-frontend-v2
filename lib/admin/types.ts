@@ -180,3 +180,19 @@ export type WhitelistSyncResult = {
   txHashes: string[];
   error?: string;
 };
+
+// GET /admin/funds
+export type FundsResponse = {
+  vtkDecimals: number;
+  usdccDecimals: number;
+  operator: {
+    address: string;
+    eth: string | null;
+    usdcc: string | null;
+    vtk: string | null;
+  };
+  treasury: { address: string; vtk: string | null };
+  vault: { address: string; usdcc: string | null };
+  vtkTotalSupply: string | null;
+  solvency: { vtkSupply: string | null; vaultUsdcc: string | null; inSync: boolean };
+};
