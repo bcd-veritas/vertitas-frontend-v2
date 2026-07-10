@@ -1,5 +1,6 @@
 import type {
   AccessResponse,
+  DepositResult,
   FundsResponse,
   MarketDetail,
   MarketListOpts,
@@ -105,4 +106,20 @@ export async function syncUserWhitelist(id: string): Promise<WhitelistSyncResult
 
 export function getAdminFunds(): Promise<FundsResponse> {
   return getJson(`/funds`);
+}
+
+export async function depositFunds(
+  amount: string,
+  destination: "operator" | "treasury",
+): Promise<DepositResult> {
+  const res = await fetch(`/api/admin/funds/deposit`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ amount, destination }),
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? `Deposit failed (${res.status})`);
+  }
+  return (await res.json()) as DepositResult;
 }

@@ -196,3 +196,10 @@ export type FundsResponse = {
   vtkTotalSupply: string | null;
   solvency: { vtkSupply: string | null; vaultUsdcc: string | null; inSync: boolean };
 };
+
+// POST /admin/funds/deposit
+export type DepositResult = {
+  status: "done" | "failed";
+  txHashes: string[];
+  error?: string;
+};
