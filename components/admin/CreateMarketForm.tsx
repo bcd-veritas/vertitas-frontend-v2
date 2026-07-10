@@ -160,7 +160,9 @@ function buildPayload(f: FormState) {
     resolverType: f.resolverType,
     resolutionSource: f.resolutionSource.trim() || undefined,
     resolver,
-    resolutionReward: opt(f.resolutionReward),
+    // Only UMA pays the reward out (to the winning proposer). For ADMIN/Chainlink
+    // the pool would just strand Treasury VTK, so never submit it.
+    resolutionReward: f.resolverType === "UMA" ? opt(f.resolutionReward) : undefined,
   };
 }
 
@@ -186,8 +188,11 @@ function validate(f: FormState): Record<string, string> {
     }
     if (!(Number(f.maxStalenessSec) > 0)) e.maxStalenessSec = "Must be > 0";
   }
-  if (f.resolverType === "UMA" && !f.umaQuestion.trim())
-    e.umaQuestion = "Question required";
+  if (f.resolverType === "UMA") {
+    if (!f.umaQuestion.trim()) e.umaQuestion = "Question required";
+    if (!/^\d+$/.test(f.resolutionReward.trim()) || Number(f.resolutionReward) <= 0)
+      e.resolutionReward = "Whole VTK amount > 0 — unrewarded UMA markets may never get a proposal";
+  }
 
   return e;
 }
@@ -505,9 +510,20 @@ export function CreateMarketForm() {
             <Field label="Fee (bps)" hint="100 bps = 1%">
               <TextInput type="number" min={0} value={f.feeBps} onChange={(e) => set("feeBps", e.target.value)} />
             </Field>
-            <Field label="Resolution reward (VTK)" hint="Paid to the resolver; funds the pool 1:1 (needs a funded Treasury). 0 = none">
-              <TextInput type="number" min={0} value={f.resolutionReward} onChange={(e) => set("resolutionReward", e.target.value)} placeholder="0" />
-            </Field>
+            {f.resolverType === "UMA" ? (
+              <Field
+                label="Resolution reward (VTK)"
+                required
+                error={err("resolutionReward")}
+                hint="Paid to the winning UMA proposer; pulled from the Treasury at creation"
+              >
+                <TextInput type="number" min={1} value={f.resolutionReward} onChange={(e) => set("resolutionReward", e.target.value)} placeholder="100" />
+              </Field>
+            ) : (
+              <p className="self-end pb-2 font-mono text-[10px] leading-relaxed text-muted/60 sm:col-span-1">
+                Resolution reward: UMA only — admin/Chainlink resolvers never pay it out.
+              </p>
+            )}
           </div>
         </details>
       </div>
