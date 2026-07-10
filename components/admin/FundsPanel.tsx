@@ -144,6 +144,15 @@ export function FundsPanel() {
         <Line label="Vault USDCC" value={fmtUnits(data.solvency.vaultUsdcc, data.usdccDecimals)} />
       </Frame>
 
+      <Frame label="Relayers" className="p-4 lg:col-span-2">
+        <div className="mb-2">
+          <Badge text="coming soon" color="#a89f9c" />
+        </div>
+        <p className="font-mono text-[11px] leading-relaxed text-muted">
+          Relayer balances, low-gas alerts and funding via ProtocolAdmin.fundRelayer.
+        </p>
+      </Frame>
+
       {fundDest ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/70 p-4">
           <div className="w-full max-w-sm border border-line bg-surface p-5">
