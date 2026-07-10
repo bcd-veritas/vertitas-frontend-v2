@@ -15,17 +15,25 @@ export default function AdminUsersPage() {
           }}
           aria-hidden="true"
         />
-        <div className="relative px-5 py-5">
-          <h1 className="font-pixel text-4xl uppercase leading-none tracking-wide text-fg">
-            Users
-          </h1>
-          <p className="mt-1.5 font-mono text-[11px] text-muted">
-            View accounts and manage roles
-          </p>
+        <div className="relative flex items-end justify-between gap-4 px-5 py-5">
+          <div>
+            <h1 className="font-pixel text-4xl uppercase leading-none tracking-wide text-fg">
+              Users
+            </h1>
+            <p className="mt-1.5 font-mono text-[11px] text-muted">
+              View accounts, balances &amp; roles — with on-chain whitelist drift
+            </p>
+          </div>
+          <div className="flex items-center gap-2 pb-0.5 font-mono text-[10px] uppercase tracking-[0.2em] text-muted">
+            <span className="pulse-dot h-1.5 w-1.5 rounded-full bg-yes" aria-hidden="true" />
+            Live · 30s
+          </div>
         </div>
       </header>
 
-      <UsersTable />
+      <div className="reveal-rise" style={{ animationDelay: "140ms" }}>
+        <UsersTable />
+      </div>
     </div>
   );
 }

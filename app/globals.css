@@ -215,6 +215,15 @@ button:disabled,
   }
 }
 
+/* Horizontal card rails — scroll without a visible scrollbar */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 /* Admin dashboard — staggered section reveal on load */
 @keyframes reveal-rise {
   from {

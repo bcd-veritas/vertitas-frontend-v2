@@ -41,16 +41,20 @@ export function Frame({
       <span aria-hidden="true" className="absolute -bottom-px -left-px w-2.5 h-2.5 border-b-2 border-l-2 transition-colors duration-300" style={tickBase} />
       <span aria-hidden="true" className="absolute -bottom-px -right-px w-2.5 h-2.5 border-b-2 border-r-2 transition-colors duration-300" style={tickBase} />
 
-      {/* Label rule */}
-      <div className="flex items-center justify-between gap-3 px-4 -translate-y-1/2 pointer-events-none">
+      {/* Label rule — pinned to the top border so caller padding can't push it */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 flex -translate-y-1/2 items-center justify-between gap-3 px-4">
         <span
-          className="pointer-events-auto bg-bg px-2 font-mono text-[13px] font-semibold uppercase tracking-[0.16em] transition-colors duration-300"
+          className="pointer-events-auto bg-bg px-2 font-mono text-[15px] font-semibold uppercase tracking-[0.16em] transition-colors duration-300"
           style={{ color: tickColor ?? "var(--color-fg)" }}
         >
           {label}
         </span>
         {right && <span className="pointer-events-auto bg-bg px-2 flex items-center">{right}</span>}
       </div>
+
+      {/* Spacer standing in for the label's old flow height, so content
+          below keeps its distance from the top rule. */}
+      <div className="h-5" aria-hidden="true" />
 
       {children}
     </section>

@@ -10,14 +10,8 @@ import { TradingTab } from "@/components/admin/market/TradingTab";
 import { ParticipantsTab } from "@/components/admin/market/ParticipantsTab";
 import { centsLabel, sharesLabel } from "@/lib/markets/format";
 import { getMarketDetail } from "@/lib/admin/data";
+import { STATUS_COLOR } from "@/components/admin/statusMeta";
 import type { MarketDetail } from "@/lib/admin/types";
-
-const STATUS_COLOR: Record<string, string> = {
-  ACTIVE: "#7fae8b",
-  ENDED: "#a89f9c",
-  RESOLVED: "#f6dcd4",
-  CANCELLED: "#c97a6d",
-};
 
 const TABS = ["Overview", "Trading", "Participants", "Resolution"] as const;
 type Tab = (typeof TABS)[number];

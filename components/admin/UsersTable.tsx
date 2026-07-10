@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Search } from "lucide-react";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAccount } from "wagmi";
 
 import { Frame } from "@/components/terminal/Frame";
@@ -13,6 +14,8 @@ import {
   syncUserWhitelist,
 } from "@/lib/admin/data";
 import type { Role, UserRow, WhitelistStatusItem } from "@/lib/admin/types";
+import { Identicon } from "./Identicon";
+import { AMBER } from "./statusMeta";
 
 const ROLE_COLOR: Record<Role, string> = {
   USER: "#a89f9c",
@@ -22,15 +25,19 @@ const ROLE_COLOR: Record<Role, string> = {
   ORACLE_PARTICIPANT: "#8bb5c9",
 };
 
-function short(addr: string) {
-  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
+/** 6-dec VTK BigInt string -> "1,250" (whole tokens). */
+function fmtVtk(raw: string): string {
+  return (BigInt(raw) / 1_000_000n).toLocaleString("en-US");
 }
 
 function RoleBadge({ role }: { role: Role }) {
   const color = ROLE_COLOR[role];
   return (
-    <span className="font-mono text-[10px] uppercase tracking-wider" style={{ color }}>
-      {role}
+    <span
+      className="border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider"
+      style={{ color, borderColor: color }}
+    >
+      {role.replace("_", " ")}
     </span>
   );
 }
@@ -66,7 +73,11 @@ function ChainPill({
   onRetry: () => void;
 }) {
   if (syncing) {
-    return <span className="font-mono text-[10px] uppercase tracking-wider text-muted">syncing…</span>;
+    return (
+      <span className="font-mono text-[10px] uppercase tracking-wider text-muted">
+        syncing…
+      </span>
+    );
   }
   if (!item) {
     return <span className="font-mono text-[10px] text-muted">…</span>;
@@ -75,7 +86,7 @@ function ChainPill({
     return (
       <button
         onClick={onRetry}
-        className="cursor-pointer font-mono text-[10px] uppercase tracking-wider text-muted hover:text-fg"
+        className="border border-line px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-muted transition-colors hover:border-fg hover:text-fg"
       >
         unknown ↻
       </button>
@@ -83,7 +94,10 @@ function ChainPill({
   }
   if (item.inSync) {
     return (
-      <span className="font-mono text-[10px] uppercase tracking-wider" style={{ color: "#7fae8b" }}>
+      <span
+        className="font-mono text-[10px] uppercase tracking-wider"
+        style={{ color: "var(--color-yes)" }}
+      >
         on-chain ✓
       </span>
     );
@@ -91,11 +105,35 @@ function ChainPill({
   return (
     <button
       onClick={onRetry}
-      className="cursor-pointer font-mono text-[10px] uppercase tracking-wider hover:opacity-80"
-      style={{ color: "#c97a6d" }}
+      className="border border-no bg-no/10 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-no transition-colors hover:bg-no/20"
     >
       drift ⚠ retry ↻
     </button>
+  );
+}
+
+function SkeletonRows() {
+  return (
+    <>
+      {Array.from({ length: 8 }).map((_, i) => (
+        <tr key={i} className="border-t border-line/60">
+          <td className="py-3 pr-3">
+            <div className="flex items-center gap-3">
+              <div className="h-9 w-9 animate-pulse border border-line bg-fg/5" />
+              <div className="flex-1">
+                <div className="h-3 animate-pulse bg-fg/10" style={{ width: `${60 + (i % 3) * 12}%` }} />
+                <div className="mt-1.5 h-2 w-20 animate-pulse bg-fg/5" />
+              </div>
+            </div>
+          </td>
+          <td className="px-2"><div className="h-4 w-16 animate-pulse bg-fg/5" /></td>
+          <td className="px-2"><div className="h-3 w-14 animate-pulse bg-fg/5" /></td>
+          <td className="px-2"><div className="ml-auto h-3 w-12 animate-pulse bg-fg/5" /></td>
+          <td className="px-2"><div className="ml-auto h-3 w-12 animate-pulse bg-fg/5" /></td>
+          <td className="pl-2"><div className="ml-auto h-3 w-14 animate-pulse bg-fg/5" /></td>
+        </tr>
+      ))}
+    </>
   );
 }
 
@@ -113,9 +151,10 @@ export function UsersTable() {
     return () => clearTimeout(t);
   }, [search]);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isPlaceholderData } = useQuery({
     queryKey: ["admin-users", page, debounced],
     queryFn: () => getAdminUsers(page, 20, debounced),
+    placeholderData: keepPreviousData,
     refetchInterval: 30_000,
   });
 
@@ -169,7 +208,7 @@ export function UsersTable() {
 
   return (
     <Frame
-      label="Users"
+      label="User registry"
       right={
         data ? (
           <span className="font-mono text-[10px] uppercase tracking-wider text-muted">
@@ -180,38 +219,91 @@ export function UsersTable() {
       className="p-4"
     >
       <div className="mb-3">
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search wallet, username, or email…"
-          className="w-full max-w-xs border border-line bg-transparent px-3 py-1.5 font-mono text-xs text-fg placeholder:text-muted focus:border-fg focus:outline-none"
-        />
+        <div className="relative max-w-sm">
+          <Search
+            size={14}
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"
+            aria-hidden="true"
+          />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search wallet, username, or email…"
+            className="w-full border border-line bg-transparent py-2 pl-8 pr-3 font-mono text-[13px] text-fg placeholder:text-muted focus:border-fg focus:outline-none"
+          />
+        </div>
       </div>
 
-      {isLoading || !data ? (
-        <p className="font-mono text-xs text-muted">Loading users…</p>
-      ) : data.items.length === 0 ? (
-        <p className="font-mono text-xs text-muted">No users found.</p>
-      ) : (
-        <>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="font-mono text-[10px] uppercase tracking-wider text-muted">
-                <tr>
-                  <th className="pb-2 pr-3 font-normal">Wallet</th>
-                  <th className="px-2 font-normal">Username</th>
-                  <th className="px-2 font-normal">Role</th>
-                  <th className="px-2 font-normal">Chain</th>
-                  <th className="pl-2 text-right font-normal">Joined</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.items.map((u: UserRow) => (
-                  <tr key={u.id} className="border-t border-line/60 hover:bg-fg/3">
-                    <td className="py-2.5 pr-3 font-mono text-xs text-fg" title={u.walletAddress}>
-                      {short(u.walletAddress)}
+      <div
+        className={`overflow-x-auto transition-opacity duration-200 ${
+          isPlaceholderData ? "opacity-50" : ""
+        }`}
+      >
+        <table className="w-full text-left text-sm">
+          <thead className="font-mono text-[10px] uppercase tracking-wider text-muted">
+            <tr>
+              <th className="w-[38%] pb-2 pr-3 font-normal">Account</th>
+              <th className="px-2 font-normal">Role</th>
+              <th className="px-2 font-normal">Chain</th>
+              <th className="px-2 text-right font-normal">Avail (VTK)</th>
+              <th className="px-2 text-right font-normal">Locked (VTK)</th>
+              <th className="pl-2 text-right font-normal">Joined</th>
+            </tr>
+          </thead>
+          <tbody>
+            {isLoading ? (
+              <SkeletonRows />
+            ) : !data || data.items.length === 0 ? (
+              <tr>
+                <td colSpan={6}>
+                  <div className="relative my-2 overflow-hidden border border-line/60 py-10 text-center">
+                    <div className="dot-grid pointer-events-none absolute inset-0 opacity-30" aria-hidden="true" />
+                    <p className="relative font-mono text-xs text-muted">No users found.</p>
+                    {search && (
+                      <button
+                        onClick={() => setSearch("")}
+                        className="relative mt-3 border border-line px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider text-muted transition-colors hover:border-fg hover:text-fg"
+                      >
+                        Clear search
+                      </button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ) : (
+              data.items.map((u: UserRow, i) => {
+                const self =
+                  !!address && u.walletAddress.toLowerCase() === address.toLowerCase();
+                const locked = BigInt(u.collateralLocked) > 0n;
+                return (
+                  <tr
+                    key={u.id}
+                    className="reveal-rise border-t border-line/60 transition-colors hover:bg-fg/[0.04]"
+                    style={{ animationDelay: `${Math.min(i, 12) * 35}ms` }}
+                  >
+                    <td className="py-2.5 pr-3">
+                      <div className="flex items-center gap-3">
+                        <Identicon
+                          seed={u.walletAddress}
+                          color={ROLE_COLOR[u.role]}
+                          className="h-9 w-9 p-1"
+                        />
+                        <div className="min-w-0">
+                          <div className="break-all font-mono text-xs text-fg">
+                            {u.walletAddress}
+                            {self && (
+                              <span className="ml-1.5 border border-line px-1 font-mono text-[9px] uppercase tracking-wider text-muted">
+                                you
+                              </span>
+                            )}
+                          </div>
+                          <div className="mt-0.5 truncate font-mono text-[11px] text-muted">
+                            {u.username ?? "—"}
+                            {u.email ? ` · ${u.email}` : ""}
+                          </div>
+                        </div>
+                      </div>
                     </td>
-                    <td className="px-2 text-fg/80">{u.username ?? "—"}</td>
                     <td className="px-2">
                       {isRowEditable(actorRole, address, u) ? (
                         <select
@@ -220,7 +312,12 @@ export function UsersTable() {
                             const next = e.target.value as Role;
                             if (next !== u.role) setPending({ user: u, newRole: next });
                           }}
-                          className="cursor-pointer border border-line bg-transparent px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-fg focus:border-fg focus:outline-none"
+                          className="cursor-pointer border px-2 py-1 font-mono text-[10px] uppercase tracking-wider focus:border-fg focus:outline-none"
+                          style={{
+                            color: ROLE_COLOR[u.role],
+                            borderColor: `color-mix(in srgb, ${ROLE_COLOR[u.role]} 45%, transparent)`,
+                            background: `color-mix(in srgb, ${ROLE_COLOR[u.role]} 6%, transparent)`,
+                          }}
                         >
                           {Array.from(new Set([u.role, ...selectableRoles(actorRole)])).map(
                             (r) => (
@@ -245,50 +342,68 @@ export function UsersTable() {
                         />
                       ) : null}
                     </td>
+                    <td className="px-2 text-right font-mono text-xs tabular-nums text-fg/80">
+                      {fmtVtk(u.collateralAvailable)}
+                    </td>
+                    <td
+                      className="px-2 text-right font-mono text-xs tabular-nums"
+                      style={{ color: locked ? AMBER : "var(--color-muted)" }}
+                    >
+                      {fmtVtk(u.collateralLocked)}
+                    </td>
                     <td className="pl-2 text-right font-mono text-xs tabular-nums text-muted">
                       {new Date(u.createdAt).toLocaleDateString()}
                     </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
 
-          <div className="mt-3 flex items-center justify-between font-mono text-[10px] uppercase tracking-wider text-muted">
-            <button
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page <= 1}
-              className="cursor-pointer border border-line px-2 py-1 disabled:cursor-default disabled:opacity-40 hover:enabled:border-fg hover:enabled:text-fg"
-            >
-              Prev
-            </button>
-            <span>
-              Page {data.page} / {Math.max(1, data.totalPages)}
-            </span>
-            <button
-              onClick={() => setPage((p) => (data.totalPages > p ? p + 1 : p))}
-              disabled={page >= data.totalPages}
-              className="cursor-pointer border border-line px-2 py-1 disabled:cursor-default disabled:opacity-40 hover:enabled:border-fg hover:enabled:text-fg"
-            >
-              Next
-            </button>
-          </div>
-        </>
+      {data && data.totalPages > 1 && (
+        <div className="mt-3 flex items-center justify-between font-mono text-[10px] uppercase tracking-wider text-muted">
+          <button
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page <= 1}
+            className="border border-line px-2.5 py-1 transition-colors disabled:cursor-default disabled:opacity-40 hover:enabled:border-fg hover:enabled:text-fg"
+          >
+            Prev
+          </button>
+          <span>
+            Page {data.page} / {Math.max(1, data.totalPages)}
+          </span>
+          <button
+            onClick={() => setPage((p) => (data.totalPages > p ? p + 1 : p))}
+            disabled={page >= data.totalPages}
+            className="border border-line px-2.5 py-1 transition-colors disabled:cursor-default disabled:opacity-40 hover:enabled:border-fg hover:enabled:text-fg"
+          >
+            Next
+          </button>
+        </div>
       )}
 
       {pending ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/70 p-4">
-          <div className="w-full max-w-sm border border-line bg-surface p-5">
+          <div className="w-full max-w-md border border-line bg-surface p-5">
             <h2 className="font-mono text-xs uppercase tracking-wider text-fg">
               Confirm role change
             </h2>
+            <div className="mt-3 flex items-center gap-3">
+              <Identicon
+                seed={pending.user.walletAddress}
+                color={ROLE_COLOR[pending.newRole]}
+                className="h-9 w-9 p-1"
+              />
+              <span className="break-all font-mono text-xs text-fg">
+                {pending.user.walletAddress}
+              </span>
+            </div>
             <p className="mt-3 font-mono text-[11px] leading-relaxed text-muted">
-              Change{" "}
-              <span className="text-fg" title={pending.user.walletAddress}>
-                {short(pending.user.walletAddress)}
-              </span>{" "}
-              from <RoleBadge role={pending.user.role} /> →{" "}
-              <RoleBadge role={pending.newRole} />?
+              <RoleBadge role={pending.user.role} />{" "}
+              <span className="mx-1 text-fg">→</span>{" "}
+              <RoleBadge role={pending.newRole} />
             </p>
             {mutation.isError ? (
               <p className="mt-3 font-mono text-[11px] text-no">
@@ -302,14 +417,16 @@ export function UsersTable() {
                   setPending(null);
                 }}
                 disabled={mutation.isPending}
-                className="cursor-pointer border border-line px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider text-muted hover:border-fg hover:text-fg disabled:opacity-40"
+                className="border border-line px-4 py-2 font-mono text-[11px] uppercase tracking-wider text-muted transition-colors hover:border-fg hover:text-fg disabled:opacity-40"
               >
                 Cancel
               </button>
               <button
                 onClick={() => mutation.mutate(pending)}
                 disabled={mutation.isPending}
-                className="cursor-pointer border border-fg px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider text-fg hover:bg-fg hover:text-bg disabled:opacity-40"
+                className={`border border-fg bg-fg px-4 py-2 font-mono text-[11px] uppercase tracking-wider text-bg transition-opacity hover:opacity-85 disabled:opacity-40 ${
+                  mutation.isPending ? "cta-busy relative overflow-hidden" : ""
+                }`}
               >
                 {mutation.isPending ? "Saving…" : "Confirm"}
               </button>

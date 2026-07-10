@@ -5,6 +5,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Frame } from "@/components/terminal/Frame";
 import { depositFunds, getAdminFunds } from "@/lib/admin/data";
+import { Identicon } from "./Identicon";
+import { AMBER, BLUE } from "./statusMeta";
 
 const EXPLORER = "https://sepolia.etherscan.io/address/";
 const LOW_GAS_WEI = 50_000_000_000_000_000n; // 0.05 ETH
@@ -21,41 +23,143 @@ function fmtUnits(raw: string | null, decimals: number, maxFrac = 2): string {
   return (neg ? "-" : "") + grouped + (frac ? "." + frac : "");
 }
 
-function short(a: string) {
-  return a ? `${a.slice(0, 6)}…${a.slice(-4)}` : "—";
-}
-
 function AddrLink({ address }: { address: string }) {
-  if (!address) return <span className="font-mono text-[11px] text-muted">—</span>;
+  if (!address) return <span className="font-mono text-sm text-muted">—</span>;
   return (
-    <a href={`${EXPLORER}${address}`} target="_blank" rel="noreferrer" className="font-mono text-[11px] text-muted hover:text-fg hover:underline" title={address}>
-      {short(address)}
+    <a
+      href={`${EXPLORER}${address}`}
+      target="_blank"
+      rel="noreferrer"
+      className="break-all font-mono text-sm text-fg/80 hover:text-fg hover:underline"
+    >
+      {address}
     </a>
   );
 }
 
-function Line({ label, value }: { label: string; value: string }) {
+/** Consistent asset colors: collateral green, platform token amber, gas blue. */
+const TOKEN_COLOR: Record<string, string> = {
+  USDCC: "#7fae8b",
+  VTK: AMBER,
+  ETH: BLUE,
+  "SEPOLIA ETH": BLUE,
+};
+
+/** Renders text with known token names (USDCC / VTK / Sepolia ETH) tinted. */
+function Tokens({ text }: { text: string }) {
+  const parts = text.split(/(\bSepolia ETH\b|\bUSDCC\b|\bVTK\b|\bETH\b)/gi);
   return (
-    <div className="flex items-center justify-between border-t border-line/60 py-1.5">
-      <span className="font-mono text-[10px] uppercase tracking-wider text-muted">{label}</span>
-      <span className="font-mono text-sm tabular-nums text-fg">{value}</span>
+    <>
+      {parts.map((p, i) => {
+        const color = TOKEN_COLOR[p.toUpperCase()];
+        return color ? (
+          <span key={i} style={{ color }}>
+            {p}
+          </span>
+        ) : (
+          <span key={i}>{p}</span>
+        );
+      })}
+    </>
+  );
+}
+
+function Line({ label, value, warn }: { label: string; value: string; warn?: boolean }) {
+  return (
+    <div className="flex items-center justify-between border-t border-line/60 py-2">
+      <span className="font-mono text-[11px] uppercase tracking-wider text-muted">
+        <Tokens text={label} />
+      </span>
+      <span className={`font-mono text-base tabular-nums ${warn ? "text-no" : "text-fg"}`}>{value}</span>
     </div>
   );
 }
 
 function Badge({ text, color }: { text: string; color: string }) {
   return (
-    <span className="border px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider" style={{ color, borderColor: color }}>
+    <span
+      className="border px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider"
+      style={{ color, borderColor: color }}
+    >
       {text}
     </span>
   );
 }
 
-function FundBtn({ onClick }: { onClick: () => void }) {
+/** Profile-style account card for the horizontal rail. */
+function AccountCard({
+  title,
+  color,
+  address,
+  role,
+  badge,
+  primaryLabel,
+  primaryValue,
+  lines,
+  action,
+  dim,
+  delay = 0,
+}: {
+  title: string;
+  color: string;
+  address: string;
+  role: string;
+  badge?: { text: string; color: string } | null;
+  primaryLabel: string;
+  primaryValue: string;
+  lines?: { label: string; value: string; warn?: boolean }[];
+  action?: { label: string; onClick: () => void } | null;
+  dim?: boolean;
+  delay?: number;
+}) {
   return (
-    <button onClick={onClick} className="cursor-pointer border border-line px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-muted hover:border-fg hover:text-fg">
-      Fund
-    </button>
+    <div
+      className={`reveal-rise ${dim ? "opacity-70" : ""}`}
+      style={{ animationDelay: `${delay}ms`, "--card": color } as React.CSSProperties}
+    >
+      <Frame
+        label={title}
+        tickColor={color}
+        className="flex h-full flex-col p-5"
+        right={badge ? <Badge text={badge.text} color={badge.color} /> : null}
+      >
+        <div className="flex items-center gap-4">
+          <Identicon seed={address || title} color={color} />
+          <div className="min-w-0">
+            <AddrLink address={address} />
+            <p className="mt-1 font-mono text-[11px] leading-relaxed text-muted">
+              <Tokens text={role} />
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-5">
+          <div className="font-mono text-[14px] uppercase tracking-[0.18em] text-muted">
+            <Tokens text={primaryLabel} />
+          </div>
+          <div className="mt-1.5 font-pixel text-5xl leading-none tabular-nums text-fg">
+            {primaryValue}
+          </div>
+        </div>
+
+        <div className="mt-4 flex-1">
+          {lines?.map((l) => <Line key={l.label} {...l} />)}
+        </div>
+
+        {action ? (
+          <button
+            onClick={action.onClick}
+            className="mt-5 w-full border px-4 py-3 font-mono text-xs uppercase tracking-[0.18em] transition-colors active:translate-y-px border-[var(--card)] text-[var(--card)] bg-[color-mix(in_srgb,var(--card)_8%,transparent)] hover:bg-[color-mix(in_srgb,var(--card)_22%,transparent)]"
+          >
+            {action.label}
+          </button>
+        ) : (
+          <div className="mt-5 border border-line/60 px-4 py-3 text-center font-mono text-xs uppercase tracking-[0.18em] text-muted">
+            {dim ? "Coming soon" : "Auto-managed by protocol"}
+          </div>
+        )}
+      </Frame>
+    </div>
   );
 }
 
@@ -90,11 +194,25 @@ export function FundsPanel() {
     setFundDest(dest);
   };
 
-  if (isLoading) return <p className="font-mono text-xs text-muted">Loading funds…</p>;
-  if (isError || !data) return <p className="font-mono text-xs text-muted">Funds unavailable (RPC?).</p>;
+  if (isLoading) {
+    return (
+      <div className="flex flex-col gap-5">
+        <div className="h-32 animate-pulse border border-line bg-fg/5" />
+        <div className="grid gap-4 md:grid-cols-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-80 animate-pulse border border-line bg-fg/5" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+  if (isError || !data) {
+    return <p className="font-mono text-xs text-muted">Funds unavailable (RPC?).</p>;
+  }
 
   const lowGas = data.operator.eth != null && BigInt(data.operator.eth) < LOW_GAS_WEI;
   const noReward = data.treasury.vtk === "0";
+  const inSync = data.solvency.inSync;
 
   const validAmount = /^\d+$/.test(amount) && BigInt(amount || "0") > 0n;
   const exceedsReserve =
@@ -104,78 +222,129 @@ export function FundsPanel() {
   const canConfirm = validAmount && !exceedsReserve && !mutation.isPending;
 
   return (
-    <div className="grid gap-5 lg:grid-cols-2">
-      <Frame label="Operator" className="p-4">
-        <div className="mb-2 flex items-center justify-between">
-          <AddrLink address={data.operator.address} />
-          <div className="flex items-center gap-2">
-            {lowGas ? <Badge text="low gas" color="#c97a6d" /> : null}
-            <FundBtn onClick={() => openFund("operator")} />
+    <div className="flex flex-col gap-5">
+      {/* Solvency — the invariant the whole system hangs on, stated as an equation */}
+      <Frame
+        label="Solvency"
+        className="reveal-rise p-4"
+        right={
+          <span className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider" style={{ color: inSync ? "var(--color-yes)" : "var(--color-no)" }}>
+            <span
+              className={`h-1.5 w-1.5 rounded-full ${inSync ? "pulse-dot bg-yes" : "bg-no"}`}
+              aria-hidden="true"
+            />
+            {inSync ? "In sync" : "Mismatch"}
+          </span>
+        }
+      >
+        <div className="grid gap-4 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
+          <div>
+            <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">
+              <Tokens text="VTK total supply" />
+            </div>
+            <div className="mt-1 font-pixel text-4xl leading-none tabular-nums text-fg">
+              {fmtUnits(data.solvency.vtkSupply, data.vtkDecimals)}
+            </div>
+          </div>
+          <div
+            className="text-center font-pixel text-5xl leading-none"
+            style={{ color: inSync ? "var(--color-yes)" : "var(--color-no)" }}
+            aria-label={inSync ? "equals" : "does not equal"}
+          >
+            {inSync ? "=" : "≠"}
+          </div>
+          <div className="sm:text-right">
+            <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">
+              <Tokens text="Vault USDCC backing" />
+            </div>
+            <div className="mt-1 font-pixel text-4xl leading-none tabular-nums text-fg">
+              {fmtUnits(data.solvency.vaultUsdcc, data.usdccDecimals)}
+            </div>
           </div>
         </div>
-        <Line label="Sepolia ETH" value={fmtUnits(data.operator.eth, 18, 4)} />
-        <Line label={"USDCC (≈ VTK mintable)"} value={fmtUnits(data.operator.usdcc, data.usdccDecimals)} />
-        <Line label="VTK" value={fmtUnits(data.operator.vtk, data.vtkDecimals)} />
-      </Frame>
-
-      <Frame label="Treasury" className="p-4">
-        <div className="mb-2 flex items-center justify-between">
-          <AddrLink address={data.treasury.address} />
-          <div className="flex items-center gap-2">
-            {noReward ? <Badge text="no reward funding" color="#a89f9c" /> : null}
-            <FundBtn onClick={() => openFund("treasury")} />
-          </div>
-        </div>
-        <Line label="VTK" value={fmtUnits(data.treasury.vtk, data.vtkDecimals)} />
-      </Frame>
-
-      <Frame label="Collateral vault" className="p-4">
-        <div className="mb-2">
-          <AddrLink address={data.vault.address} />
-        </div>
-        <Line label="USDCC (backing)" value={fmtUnits(data.vault.usdcc, data.usdccDecimals)} />
-        <p className="mt-2 font-mono text-[10px] leading-relaxed text-muted">
-          Holds the USDCC that backs every VTK 1:1 — minted on deposit, released on redeem.
+        <p className="mt-3 border-t border-line/60 pt-2 font-mono text-[10px] leading-relaxed text-muted">
+          <Tokens text="Every VTK is minted against USDCC held in the collateral vault — supply and backing must match 1:1." />
         </p>
       </Frame>
 
-      <Frame label="Solvency" className="p-4">
-        <div className="mb-2">
-          {data.solvency.inSync ? <Badge text="in sync ✓" color="#7fae8b" /> : <Badge text="mismatch ⚠" color="#c97a6d" />}
+      {/* Account grid */}
+      <div className="reveal-rise" style={{ animationDelay: "120ms" }}>
+        <div className="mb-4 flex items-center justify-between">
+          <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted">
+            Accounts
+          </span>
         </div>
-        <Line label="Total VTK supply in environment" value={fmtUnits(data.solvency.vtkSupply, data.vtkDecimals)} />
-        <Line label="Vault USDCC" value={fmtUnits(data.solvency.vaultUsdcc, data.usdccDecimals)} />
-      </Frame>
 
-      <Frame label="Relayers" className="p-4 lg:col-span-2">
-        <div className="mb-2">
-          <Badge text="coming soon" color="#a89f9c" />
+        <div className="grid gap-4 md:grid-cols-2">
+          <AccountCard
+            title="Operator"
+            color={BLUE}
+            address={data.operator.address}
+            role="Hot wallet — pays gas, holds the USDCC mint reserve"
+            badge={lowGas ? { text: "low gas", color: "#c97a6d" } : null}
+            primaryLabel="USDCC"
+            primaryValue={fmtUnits(data.operator.usdcc, data.usdccDecimals)}
+            lines={[
+              { label: "Sepolia ETH (gas)", value: fmtUnits(data.operator.eth, 18, 4), warn: lowGas },
+              { label: "VTK", value: fmtUnits(data.operator.vtk, data.vtkDecimals) },
+            ]}
+            action={{ label: "Fund operator", onClick: () => openFund("operator") }}
+            delay={0}
+          />
+          <AccountCard
+            title="Treasury"
+            color={AMBER}
+            address={data.treasury.address}
+            role="Reward pool — funds resolution and voter rewards"
+            badge={noReward ? { text: "no reward funding", color: "#a89f9c" } : null}
+            primaryLabel="VTK"
+            primaryValue={fmtUnits(data.treasury.vtk, data.vtkDecimals)}
+            action={{ label: "Fund treasury", onClick: () => openFund("treasury") }}
+            delay={70}
+          />
+          <AccountCard
+            title="Collateral vault"
+            color="#7fae8b"
+            address={data.vault.address}
+            role="Holds the USDCC that backs every VTK 1:1 — minted on deposit, released on redeem"
+            primaryLabel="USDCC"
+            primaryValue={fmtUnits(data.vault.usdcc, data.usdccDecimals)}
+            delay={140}
+          />
+          <AccountCard
+            title="Relayers"
+            color="#a89f9c"
+            address=""
+            role="Relayer balances, low-gas alerts and funding via ProtocolAdmin.fundRelayer"
+            badge={{ text: "coming soon", color: "#a89f9c" }}
+            primaryLabel="Relayer balance"
+            primaryValue="—"
+            dim
+            delay={210}
+          />
         </div>
-        <p className="font-mono text-[11px] leading-relaxed text-muted">
-          Relayer balances, low-gas alerts and funding via ProtocolAdmin.fundRelayer.
-        </p>
-      </Frame>
+      </div>
 
       {fundDest ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/70 p-4">
           <div className="w-full max-w-sm border border-line bg-surface p-5">
             <h2 className="font-mono text-xs uppercase tracking-wider text-fg">
-              Fund {fundDest} with VTK
+              Fund {fundDest} with <Tokens text="VTK" />
             </h2>
             <input
               value={amount}
               onChange={(e) => setAmount(e.target.value.replace(/[^0-9]/g, ""))}
               placeholder="Amount (whole VTK)"
               inputMode="numeric"
-              className="mt-3 w-full border border-line bg-transparent px-3 py-1.5 font-mono text-sm text-fg placeholder:text-muted focus:border-fg focus:outline-none"
+              className="mt-3 w-full border border-line bg-transparent px-3 py-2 font-mono text-sm text-fg placeholder:text-muted focus:border-fg focus:outline-none"
             />
             <p className="mt-3 font-mono text-[11px] leading-relaxed text-muted">
-              Deposit <span className="text-fg">{amount || "0"}</span> USDCC → mint{" "}
-              <span className="text-fg">{amount || "0"}</span> VTK to{" "}
+              Deposit <span className="text-fg">{amount || "0"}</span> <Tokens text="USDCC" /> → mint{" "}
+              <span className="text-fg">{amount || "0"}</span> <Tokens text="VTK" /> to{" "}
               <span className="text-fg">{fundDest}</span>.
             </p>
             <p className="mt-1.5 font-mono text-[10px] leading-relaxed text-muted">
-              USDCC is deducted from the operator EOA.
+              <Tokens text="USDCC is deducted from the operator EOA." />
             </p>
             {exceedsReserve ? (
               <p className="mt-2 font-mono text-[11px] text-no">Exceeds operator USDCC.</p>
@@ -193,14 +362,15 @@ export function FundsPanel() {
                   setFundDest(null);
                 }}
                 disabled={mutation.isPending}
-                className="cursor-pointer border border-line px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider text-muted hover:border-fg hover:text-fg disabled:opacity-40"
+                className="border border-line px-4 py-2 font-mono text-[11px] uppercase tracking-wider text-muted transition-colors hover:border-fg hover:text-fg disabled:opacity-40"
               >
                 Cancel
               </button>
               <button
                 onClick={() => mutation.mutate({ amount, destination: fundDest })}
                 disabled={!canConfirm}
-                className="cursor-pointer border border-fg px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider text-fg hover:bg-fg hover:text-bg disabled:opacity-40"
+                className={`border border-fg bg-fg px-4 py-2 font-mono text-[11px] uppercase tracking-wider text-bg transition-opacity hover:opacity-85 disabled:opacity-40 ${mutation.isPending ? "cta-busy relative overflow-hidden" : ""
+                  }`}
               >
                 {mutation.isPending ? "Funding…" : "Confirm"}
               </button>
