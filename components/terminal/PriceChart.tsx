@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import type { ApiOutcome, PricePoint } from "@/lib/markets/types";
 import { oneDp } from "@/lib/markets/format";
-import { ProbabilityChart, type ChartSeries } from "../charts/ProbabilityChart";
+import { flatlinePad, ProbabilityChart, type ChartSeries } from "../charts/ProbabilityChart";
 import { CHART_PALETTE } from "../charts/palette";
 import { Frame } from "./Frame";
 
@@ -85,7 +85,11 @@ export function PriceChart({
       key: r.key,
       label: r.label,
       color: r.color,
-      points: windowMs == null ? r.points : r.points.filter((p) => anchor - p.t <= windowMs),
+      // flatlinePad: a series with one print (first trade, or windowed down
+      // to its newest) draws a flat step instead of vanishing.
+      points: flatlinePad(
+        windowMs == null ? r.points : r.points.filter((p) => anchor - p.t <= windowMs),
+      ),
     }));
   }, [ranked, tf]);
 

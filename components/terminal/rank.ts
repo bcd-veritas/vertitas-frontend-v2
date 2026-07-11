@@ -64,12 +64,22 @@ export function rankRows(
     const lastTrade =
       history.length > 0 ? toCents(history[history.length - 1].price) : null;
     // Mirror the backend's mark (priceFor + withComplementSides, which feed
-    // /home & featured): a side missing from the YES book is synthesized from
-    // the real NO book at 100 − p (an ask over there IS a bid over here), then
-    // midpoint when two-sided, else last trade. Diverging from that priority
-    // made the detail page's chance disagree with the card's.
-    const effBid = bestBid ?? (noBestAsk != null ? 100 - noBestAsk : null);
-    const effAsk = bestAsk ?? (noBestBid != null ? 100 - noBestBid : null);
+    // /home & featured): the combined book — best of the real quote and the
+    // NO book's implied one at 100 − p on each side (an ask over there IS a
+    // bid over here) — then midpoint when two-sided, else last trade. The
+    // combined Yes/No books are exact mirrors, so the marks always sum to
+    // 100%. Diverging from the backend's priority made the detail page's
+    // chance disagree with the card's.
+    const impliedBid = noBestAsk != null ? 100 - noBestAsk : null;
+    const impliedAsk = noBestBid != null ? 100 - noBestBid : null;
+    const effBid =
+      bestBid != null && impliedBid != null
+        ? Math.max(bestBid, impliedBid)
+        : bestBid ?? impliedBid;
+    const effAsk =
+      bestAsk != null && impliedAsk != null
+        ? Math.min(bestAsk, impliedAsk)
+        : bestAsk ?? impliedAsk;
     const pct =
       effBid != null && effAsk != null ? (effBid + effAsk) / 2 : lastTrade;
 

@@ -32,6 +32,18 @@ export type ChartSeries = {
   points: ChartPoint[];
 };
 
+/**
+ * A single print can't draw a line, so a market's first trade rendered as an
+ * empty chart. Pad a same-value point one hour earlier to make a flat step.
+ * Anchored to the print's own timestamp (never Date.now()) so SSR and client
+ * agree.
+ */
+export function flatlinePad(points: ChartPoint[]): ChartPoint[] {
+  if (points.length !== 1) return points;
+  const p = points[0];
+  return [{ t: p.t - 60 * 60 * 1000, pct: p.pct }, p];
+}
+
 /** Resolve a CSS custom property off :root at call time (client only). */
 function cssVar(name: string, fallback: string): string {
   const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();

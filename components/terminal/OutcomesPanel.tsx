@@ -4,7 +4,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 import { oneDp, toCents } from "@/lib/markets/format";
 import { complementBook } from "@/lib/orders/book-math";
-import { ProbabilityChart, type ChartSeries } from "../charts/ProbabilityChart";
+import { flatlinePad, ProbabilityChart, type ChartSeries } from "../charts/ProbabilityChart";
 import { MonoLabel } from "../landing/ui/MonoLabel";
 import { ComingSoonBody } from "./ComingSoon";
 import { Ladder } from "./Ladder";
@@ -76,15 +76,17 @@ function Expansion({
           ? side === "no" ? "No" : "Yes"
           : side === "no" ? `${row.outcome.label} · No` : row.outcome.label,
         color: row.color,
-        points: noPoints
-          ? noPoints.map((p) => ({
-              t: +new Date(p.createdAt),
-              pct: toCents(p.price),
-            }))
-          : row.history.map((p) => ({
-              t: +new Date(p.createdAt),
-              pct: side === "no" ? 100 - toCents(p.price) : toCents(p.price),
-            })),
+        points: flatlinePad(
+          noPoints
+            ? noPoints.map((p) => ({
+                t: +new Date(p.createdAt),
+                pct: toCents(p.price),
+              }))
+            : row.history.map((p) => ({
+                t: +new Date(p.createdAt),
+                pct: side === "no" ? 100 - toCents(p.price) : toCents(p.price),
+              })),
+        ),
       },
     ];
   }, [row, side, binary]);
