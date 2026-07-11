@@ -149,7 +149,7 @@ function AccountCard({
         {action ? (
           <button
             onClick={action.onClick}
-            className="mt-5 w-full border px-4 py-3 font-mono text-xs uppercase tracking-[0.18em] transition-colors active:translate-y-px border-[var(--card)] text-[var(--card)] bg-[color-mix(in_srgb,var(--card)_8%,transparent)] hover:bg-[color-mix(in_srgb,var(--card)_22%,transparent)]"
+            className="mt-5 w-full border px-4 py-3 font-mono text-xs uppercase tracking-[0.18em] transition-colors active:translate-y-px border-(--card) text-(--card) bg-[color-mix(in_srgb,var(--card)_8%,transparent)] hover:bg-[color-mix(in_srgb,var(--card)_22%,transparent)]"
           >
             {action.label}
           </button>

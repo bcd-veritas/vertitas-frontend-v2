@@ -235,9 +235,8 @@ export function UsersTable() {
       </div>
 
       <div
-        className={`overflow-x-auto transition-opacity duration-200 ${
-          isPlaceholderData ? "opacity-50" : ""
-        }`}
+        className={`overflow-x-auto transition-opacity duration-200 ${isPlaceholderData ? "opacity-50" : ""
+          }`}
       >
         <table className="w-full text-left text-sm">
           <thead className="font-mono text-[10px] uppercase tracking-wider text-muted">
@@ -278,7 +277,7 @@ export function UsersTable() {
                 return (
                   <tr
                     key={u.id}
-                    className="reveal-rise border-t border-line/60 transition-colors hover:bg-fg/[0.04]"
+                    className="reveal-rise border-t border-line/60 transition-colors hover:bg-fg/4"
                     style={{ animationDelay: `${Math.min(i, 12) * 35}ms` }}
                   >
                     <td className="py-2.5 pr-3">
@@ -424,9 +423,8 @@ export function UsersTable() {
               <button
                 onClick={() => mutation.mutate(pending)}
                 disabled={mutation.isPending}
-                className={`border border-fg bg-fg px-4 py-2 font-mono text-[11px] uppercase tracking-wider text-bg transition-opacity hover:opacity-85 disabled:opacity-40 ${
-                  mutation.isPending ? "cta-busy relative overflow-hidden" : ""
-                }`}
+                className={`border border-fg bg-fg px-4 py-2 font-mono text-[11px] uppercase tracking-wider text-bg transition-opacity hover:opacity-85 disabled:opacity-40 ${mutation.isPending ? "cta-busy relative overflow-hidden" : ""
+                  }`}
               >
                 {mutation.isPending ? "Saving…" : "Confirm"}
               </button>
