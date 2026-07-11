@@ -1,90 +1,132 @@
 import type { ApiOutcome } from "@/lib/markets/types";
 
 /**
- * Mirrors veritas-contracts OrderVerifier.sol / ExchangeTypes.sol — the
- * canonical on-chain order. The middleware's current verifier still expects
- * the older "Veritas CLOB" struct; the backend team is aligning it to this
- * one. If their final format differs, THIS FILE is the only place to change.
+ * Mirrors veritas-middleware's eip712.config.ts — the "Veritas CLOB" order
+ * struct that intake's Eip712SignatureVerifier actually recovers. This is the
+ * canonical format: the deployed Exchange contract never verifies user order
+ * signatures (settlement is operator-committed Merkle batches), so the
+ * contracts' VeritasExchange struct (OrderVerifier.sol) is unwired dead code.
+ * Revisit only if direct on-chain fills ever land in a future Exchange.
  */
 export const ORDER_TYPES = {
   Order: [
+    { name: "orderId", type: "string" },
+    { name: "marketId", type: "string" },
+    { name: "tokenId", type: "string" },
     { name: "maker", type: "address" },
-    { name: "market", type: "address" },
-    { name: "outcomeIndex", type: "uint256" },
     { name: "side", type: "uint8" },
-    { name: "quantity", type: "uint256" },
     { name: "price", type: "uint256" },
-    { name: "nonce", type: "uint256" },
+    { name: "amount", type: "uint256" },
     { name: "expiration", type: "uint256" },
-    { name: "salt", type: "bytes32" },
+    { name: "nonce", type: "uint256" },
   ],
 } as const;
 
-/** ExchangeTypes.PRICE_SCALE — 1e6, NOT the API's 1e8. */
-export const CONTRACT_PRICE_SCALE = 1_000_000n;
-/** Provisional share scale (USDC-aligned); confirm with backend team. */
-export const CONTRACT_QTY_SCALE = 1_000_000n;
+/** Backend fixed-point scales (shared/utils/fixed-point.ts): 1e8 for both. */
+export const PRICE_SCALE = 100_000_000n;
+export const AMOUNT_SCALE = 100_000_000n;
 
-/** Zero until the exchange is deployed; signatures are throwaway until then. */
+/**
+ * Must equal the middleware's EXCHANGE_CONTRACT — it is the signing domain's
+ * verifyingContract, and recovery fails on any mismatch.
+ */
 const EXCHANGE_ADDRESS = (process.env.NEXT_PUBLIC_EXCHANGE_CONTRACT ??
   "0x0000000000000000000000000000000000000000") as `0x${string}`;
 
 export type OrderIntent = {
   marketId: string;
+  /** The outcome token actually traded (binary NO orders pass the real NO outcome). */
   outcome: ApiOutcome;
   side: "yes" | "no";
   action: "buy" | "sell";
   orderType: "MARKET" | "LIMIT";
-  /** Price of the SELECTED side in whole-ish cents (market orders: worst walked price). */
+  /** Price of the SELECTED side in cents, already snapped to the tick grid. */
   priceCents: number;
   shares: number;
 };
 
-function randomSalt(): `0x${string}` {
-  const bytes = crypto.getRandomValues(new Uint8Array(32));
-  return `0x${Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("")}`;
+/** The exact JSON body POST /orders expects (backend SignedOrder sans signature). */
+export type OrderWire = {
+  orderId: string;
+  marketId: string;
+  tokenId: string;
+  maker: `0x${string}`;
+  side: "BID" | "ASK";
+  orderType: "MARKET" | "LIMIT";
+  price: string; // decimal string, 0 < p < 1 (e.g. "0.500000")
+  amount: string; // decimal shares (e.g. "2.000000")
+  expiration: number; // unix ms
+  nonce: string;
+};
+
+/**
+ * Decimal string -> fixed-point bigint, exactly like the backend's
+ * parseFixedPointDecimal — the signed bigints and the wire strings MUST parse
+ * to the same values or recovery fails.
+ */
+function toFixedPoint(decimal: string, scale: bigint): bigint {
+  const decimals = scale.toString().length - 1;
+  const [whole, fraction = ""] = decimal.split(".");
+  return (
+    BigInt(whole || "0") * scale +
+    BigInt(fraction.padEnd(decimals, "0").slice(0, decimals) || "0")
+  );
 }
 
 /**
- * PROVISIONAL yes/no mapping (backend team owns the final word): the API
- * exposes one tokenId per outcome (its YES token), so a NO trade is encoded
- * on the same outcomeIndex with the complementary price and flipped side —
- * which is how complementary CLOB matching treats it. Revisit when the
- * backend finalizes whether NO gets its own outcome index (per
- * ExchangeTypes.sol's "0 = NO, 1 = YES" comment).
+ * Binary markets carry a REAL NO token (index 0), and the CLOB matches per
+ * token — so a binary NO trade arrives here already resolved by TradePanel:
+ * intent.outcome IS the NO outcome and priceCents is quoted on its own book.
+ * Encode it directly. Only the non-binary "no" case (no complement token
+ * exists; unsupported by the backend) keeps the legacy mirror encoding.
  */
 export function buildOrderTypedData(
   intent: OrderIntent,
   maker: `0x${string}`,
   chainId: number,
 ) {
-  const yesSide = intent.action === "buy" ? 0 : 1; // BID : ASK
-  const side = intent.side === "yes" ? yesSide : 1 - yesSide;
-  const priceCents =
-    intent.side === "yes" ? intent.priceCents : 100 - intent.priceCents;
+  // Identify by label, not index — the project-wide binary convention.
+  const direct =
+    intent.side === "yes" ||
+    intent.outcome.label.trim().toLowerCase() === "no";
+  const directSide = intent.action === "buy" ? 0 : 1; // BID : ASK
+  const side = direct ? directSide : 1 - directSide;
+  const priceCents = direct ? intent.priceCents : 100 - intent.priceCents;
 
-  const message = {
+  const wire: OrderWire = {
+    orderId: crypto.randomUUID(),
+    marketId: intent.marketId,
+    tokenId: intent.outcome.tokenId,
     maker,
-    market: EXCHANGE_ADDRESS, // PredictionMarket addr unknown until deploy; placeholder
-    outcomeIndex: BigInt(intent.outcome.index),
-    side,
-    quantity: BigInt(Math.round(intent.shares * Number(CONTRACT_QTY_SCALE))),
-    price: BigInt(Math.round((priceCents / 100) * Number(CONTRACT_PRICE_SCALE))),
-    nonce: BigInt(Date.now()),
-    expiration: BigInt(Math.floor(Date.now() / 1000) + 24 * 60 * 60),
-    salt: randomSalt(),
+    side: side === 0 ? "BID" : "ASK",
+    orderType: intent.orderType,
+    price: (priceCents / 100).toFixed(6),
+    amount: intent.shares.toFixed(6),
+    expiration: Date.now() + 24 * 60 * 60 * 1000,
+    nonce: String(Date.now()),
   };
 
   return {
     domain: {
-      name: "VeritasExchange",
+      name: "Veritas CLOB",
       version: "1",
       chainId,
       verifyingContract: EXCHANGE_ADDRESS,
     },
     types: ORDER_TYPES,
     primaryType: "Order" as const,
-    message,
+    message: {
+      orderId: wire.orderId,
+      marketId: wire.marketId,
+      tokenId: wire.tokenId,
+      maker,
+      side,
+      price: toFixedPoint(wire.price, PRICE_SCALE),
+      amount: toFixedPoint(wire.amount, AMOUNT_SCALE),
+      expiration: BigInt(wire.expiration),
+      nonce: BigInt(wire.nonce),
+    },
+    wire,
   };
 }
 

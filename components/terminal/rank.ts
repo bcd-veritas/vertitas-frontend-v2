@@ -12,15 +12,19 @@ export type RankedRow = {
   book: OrderBookData;
   /** Oldest-first trade history for this outcome. */
   history: PricePoint[];
+  /** The complement outcome's REAL book (binary markets only, else null). */
+  noBook: OrderBookData | null;
+  /** The complement outcome's real trade history (binary only, else null). */
+  noHistory: PricePoint[] | null;
   /** Probability 0–100: latest trade, else book midpoint, else null. */
   pct: number | null;
-  /** Cost to buy YES = best ask (cents, one decimal), null when no asks. */
+  /** Cost to buy YES = YES best ask (cents, one decimal), null when no asks. */
   yesCents: number | null;
-  /** Cost to buy NO = 100 − best bid (cents, one decimal), null when no bids. */
+  /** Cost to buy NO = NO-book best ask (binary), null when none. */
   noCents: number | null;
-  /** Proceeds to sell YES = best bid, null when no bids. */
+  /** Proceeds to sell YES = YES best bid, null when no bids. */
   sellYesCents: number | null;
-  /** Proceeds to sell NO = 100 − best ask, null when no asks. */
+  /** Proceeds to sell NO = NO-book best bid (binary), null when none. */
   sellNoCents: number | null;
   /** Rank color — one shared assignment for chart, tower, hero, and ticket. */
   color: string;
@@ -37,37 +41,51 @@ export function rankRows(
   books: OrderBookData[],
   series: PricePoint[][],
 ): RankedRow[] {
-  // Binary (Yes/No) markets collapse to the YES row: the "No" outcome is a
-  // phantom (no book of its own — NO trading is the complement of the YES
-  // book), so ranking it alongside YES would render a dead "—" row with
-  // nonsensical Buy yes/Buy no chips on both lines.
+  // Binary (Yes/No) markets collapse to the YES row, but the "No" outcome is
+  // NOT a phantom: the backend runs a real book per token and its matching
+  // engine only crosses same-token orders. So the row's NO prices must come
+  // from the real NO book — a mirror of the YES book quotes fills that can't
+  // execute (e.g. a fresh seeded market has asks on both books and no bids;
+  // the mirror would price selling NO off a bid that doesn't exist).
   const yes = binaryYesOutcome(outcomes);
   const visible = yes ? outcomes.filter((o) => o.id === yes.id) : outcomes;
+  const noIdx = yes ? outcomes.findIndex((o) => o.id !== yes.id) : -1;
 
   const rows = visible.map((outcome): RankedRow => {
     const i = outcomes.indexOf(outcome);
     const book = books[i] ?? EMPTY_BOOK;
     const history = series[i] ?? [];
+    const noBook = noIdx !== -1 ? books[noIdx] ?? EMPTY_BOOK : null;
+    const noHistory = noIdx !== -1 ? series[noIdx] ?? [] : null;
     const bestBid = book.bids[0] ? toCents(book.bids[0].price) : null;
     const bestAsk = book.asks[0] ? toCents(book.asks[0].price) : null;
+    const noBestBid = noBook?.bids[0] ? toCents(noBook.bids[0].price) : null;
+    const noBestAsk = noBook?.asks[0] ? toCents(noBook.asks[0].price) : null;
     const lastTrade =
       history.length > 0 ? toCents(history[history.length - 1].price) : null;
-    // Mirror the backend's priceFor (which feeds /home & featured): the mark
-    // is the book midpoint when both sides exist, else the last trade. Using
-    // the opposite priority here made the detail page's chance disagree with
-    // the card's for the same market.
+    // Mirror the backend's mark (priceFor + withComplementSides, which feed
+    // /home & featured): a side missing from the YES book is synthesized from
+    // the real NO book at 100 − p (an ask over there IS a bid over here), then
+    // midpoint when two-sided, else last trade. Diverging from that priority
+    // made the detail page's chance disagree with the card's.
+    const effBid = bestBid ?? (noBestAsk != null ? 100 - noBestAsk : null);
+    const effAsk = bestAsk ?? (noBestBid != null ? 100 - noBestBid : null);
     const pct =
-      bestBid != null && bestAsk != null ? (bestBid + bestAsk) / 2 : lastTrade;
+      effBid != null && effAsk != null ? (effBid + effAsk) / 2 : lastTrade;
 
     return {
       outcome,
       book,
       history,
+      noBook,
+      noHistory,
       pct,
       yesCents: bestAsk,
-      noCents: bestBid != null ? 100 - bestBid : null,
+      // Binary: real NO-book quotes. Non-binary rows keep the mirrored
+      // fallback — no complement token exists to read from.
+      noCents: noBook ? noBestAsk : bestBid != null ? 100 - bestBid : null,
       sellYesCents: bestBid,
-      sellNoCents: bestAsk != null ? 100 - bestAsk : null,
+      sellNoCents: noBook ? noBestBid : bestAsk != null ? 100 - bestAsk : null,
       color: "", // assigned after sorting, by rank
     };
   });

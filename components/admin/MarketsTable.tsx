@@ -107,9 +107,13 @@ export function MarketsTable({
   }, [search, category]);
 
   // Status is owned by the header census strip; new filter -> first page.
-  useEffect(() => {
+  // React-sanctioned "adjust state during render" (same pattern as the
+  // terminal's TradePanel/Collapsible) — no effect, no cascading render.
+  const [prevStatus, setPrevStatus] = useState(status);
+  if (status !== prevStatus) {
+    setPrevStatus(status);
     setPage(1);
-  }, [status]);
+  }
 
   const { data, isLoading, isPlaceholderData } = useQuery({
     queryKey: ["admin-markets-list", page, status, resolverType, debouncedCat, sort, debounced],

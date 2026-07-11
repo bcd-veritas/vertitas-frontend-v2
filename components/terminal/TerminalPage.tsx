@@ -129,7 +129,7 @@ export function TerminalPage({
               />
             </div>
             <div data-rise>
-              <MarketComments marketId={market.id} />
+              <MarketComments marketId={market.id} outcomes={market.outcomes} />
             </div>
             <div data-rise>
               <RelatedMarkets markets={related} />

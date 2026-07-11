@@ -23,9 +23,9 @@ export function chancePct(price: string | null): number | null {
 }
 
 /**
- * The YES outcome of a pure Yes/No market, else null. Binary markets carry a
- * phantom "No" outcome row (all liquidity lives on the YES token; NO trades
- * are the complement of the YES book), so UIs collapse them to one row.
+ * The YES outcome of a pure Yes/No market, else null. Binary markets render
+ * as one row (the YES row), but the NO outcome is a real token with its own
+ * book — NO prices/trades must be read from it, not mirrored from YES.
  */
 export function binaryYesOutcome(outcomes: ApiOutcome[]): ApiOutcome | null {
   if (outcomes.length !== 2) return null;

@@ -1,4 +1,5 @@
 import type { ApiMarket } from "@/lib/markets/types";
+import { oneDp } from "@/lib/markets/format";
 import { Frame } from "./Frame";
 
 function trunc(v: string | null, head = 10, tail = 6): string {
@@ -26,10 +27,13 @@ export function RulesPanel({ market }: { market: ApiMarket }) {
       <LeaderRow k="status" v={market.status} />
       <LeaderRow k="resolution_source" v={trunc(market.resolutionSource, 18, 8)} />
       <LeaderRow k="condition_id" v={trunc(market.conditionId)} />
-      <LeaderRow k="tick_size" v="1¢" />
-      <LeaderRow k="min_order" v="1 SHARE" />
+      <LeaderRow k="tick_size" v={`${oneDp(Number(market.tickSize) / 1_000_000)}¢`} />
+      <LeaderRow
+        k="min_order"
+        v={`${oneDp(Number(market.minOrderSize) / 100_000_000)} ${Number(market.minOrderSize) === 100_000_000 ? "SHARE" : "SHARES"}`}
+      />
       <LeaderRow k="fee" v={`${market.feeBps} BPS`} />
-      <LeaderRow k="settlement" v="USDC" />
+      <LeaderRow k="settlement" v="VTK" />
       <LeaderRow
         k="outcomes"
         v={`${market.outcomes.length} (${market.outcomes.length === 2 ? "BINARY" : "MULTI"})`}

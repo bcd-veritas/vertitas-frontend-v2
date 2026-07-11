@@ -95,9 +95,21 @@ export function TradePanel({
   const outcome = pos !== -1 ? market.outcomes[pos] : null;
   const side = selection?.side ?? "yes";
   const book = outcome ? books[pos] ?? EMPTY_BOOK : EMPTY_BOOK;
-  // NO trades walk the complementary book (YES bids/asks mirrored at 100−p),
-  // matching OutcomesPanel's "Buy no" chip and eip712's complement mapping.
-  const sideBook = side === "no" ? complementBook(book) : book;
+  // Binary NO trades walk the REAL No book (each token has its own book; the
+  // matching engine only crosses same-token orders), matching OutcomesPanel's
+  // "Buy no" chip. The mirrored complement view survives only as the
+  // non-binary fallback, where no complement token exists.
+  const noPos =
+    binary && outcome
+      ? market.outcomes.findIndex((o) => o.id !== outcome.id)
+      : -1;
+  const noOutcome = noPos !== -1 ? market.outcomes[noPos] : null;
+  const sideBook =
+    side === "no"
+      ? noPos !== -1
+        ? books[noPos] ?? EMPTY_BOOK
+        : complementBook(book)
+      : book;
   const live = market.status === "ACTIVE";
   // Per lib/markets/types.ts: tickSize "1000000" == 1¢ (price units); minOrderSize "100000000" == 1 share (amount units).
   const tickCents = Number(market.tickSize) / 1_000_000;
@@ -145,23 +157,32 @@ export function TradePanel({
   /* ---------- submit ---------- */
   const placeOrder = async () => {
     if (!outcome || !address) return;
+    // Intake rejects prices off the tick grid, and a market order's VWAP can
+    // land between ticks — snap toward the marketable side (buys round up,
+    // sells down) so the order still crosses, clamped inside (0, 100).
+    const snapped =
+      action === "buy"
+        ? Math.min(100 - tickCents, Math.ceil(est.avg / tickCents) * tickCents)
+        : Math.max(tickCents, Math.floor(est.avg / tickCents) * tickCents);
     const intent: OrderIntent = {
       marketId: market.id,
-      outcome,
+      // The outcome token actually traded: a binary NO order trades the real
+      // NO token at its own book's price — no complement re-encoding.
+      outcome: side === "no" && noOutcome ? noOutcome : outcome,
       side,
       action,
       orderType: mode,
-      priceCents: est.avg,
+      priceCents: snapped,
       shares: est.shares,
     };
     setError(null);
     setPhase("signing");
     try {
-      const typed = buildOrderTypedData(intent, address, chainId);
+      const { wire, ...typed } = buildOrderTypedData(intent, address, chainId);
       const signature = await signTypedDataAsync(typed);
       if (submitEnabled) {
         setPhase("submitting");
-        await submitSignedOrder(intent, typed.message, signature);
+        await submitSignedOrder(wire, signature);
       }
       setPhase("done");
       if (resetTimeoutRef.current) clearTimeout(resetTimeoutRef.current);
@@ -192,9 +213,9 @@ export function TradePanel({
             ? "ORDER PLACED"
             : "ORDER SIGNED"
           : (binary
-              ? `${action} ${side}`
-              : `${action} ${side} — ${outcome?.label ?? ""}`
-            ).toUpperCase();
+            ? `${action} ${side}`
+            : `${action} ${side} — ${outcome?.label ?? ""}`
+          ).toUpperCase();
 
   const yesToneActive = side === "yes";
   // Buy shows the ask (what you pay); Sell shows the bid (what you receive).
@@ -470,7 +491,7 @@ export function TradePanel({
         <p className="font-mono text-[11px] uppercase tracking-[0.1em] text-muted/50">
           {submitEnabled
             ? "orders are eip-712 signed · sim.data"
-            : "orders are eip-712 signed · submission pending backend · sim.data"}
+            : "orders are eip-712 signed"}
         </p>
       </div>
     </Frame>

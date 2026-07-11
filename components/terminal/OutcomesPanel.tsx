@@ -56,30 +56,38 @@ function Expansion({
 }) {
   const [tab, setTab] = useState<TabId>("book");
 
-  // "Buy No" flips the expansion to the complementary side: the No book is the
-  // Yes book mirrored (each level re-priced 100 − p, bids/asks swapped) and the
-  // No probability line is 100 − Yes. "Buy Yes" shows the raw book/history.
+  // "Buy No" flips the expansion to the complementary side. Binary markets
+  // have a REAL No book and trade history (one book per token; the engine
+  // only crosses same-token orders), so show those. The mirrored view
+  // (100 − p, bids/asks swapped) remains only as the non-binary fallback,
+  // where no complement token exists.
   const book = useMemo(
-    () => (side === "no" ? complementBook(row.book) : row.book),
-    [row.book, side],
+    () =>
+      side === "no" ? row.noBook ?? complementBook(row.book) : row.book,
+    [row.book, row.noBook, side],
   );
 
-  const graphSeries = useMemo<ChartSeries[]>(
-    () => [
+  const graphSeries = useMemo<ChartSeries[]>(() => {
+    const noPoints = side === "no" ? row.noHistory : null;
+    return [
       {
         key: row.outcome.id,
         label: binary
           ? side === "no" ? "No" : "Yes"
           : side === "no" ? `${row.outcome.label} · No` : row.outcome.label,
         color: row.color,
-        points: row.history.map((p) => ({
-          t: +new Date(p.createdAt),
-          pct: side === "no" ? 100 - toCents(p.price) : toCents(p.price),
-        })),
+        points: noPoints
+          ? noPoints.map((p) => ({
+              t: +new Date(p.createdAt),
+              pct: toCents(p.price),
+            }))
+          : row.history.map((p) => ({
+              t: +new Date(p.createdAt),
+              pct: side === "no" ? 100 - toCents(p.price) : toCents(p.price),
+            })),
       },
-    ],
-    [row, side, binary],
-  );
+    ];
+  }, [row, side, binary]);
   const hasGraph = graphSeries[0].points.length >= 2;
 
   return (
