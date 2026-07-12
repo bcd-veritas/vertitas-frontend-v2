@@ -14,7 +14,8 @@ import {
   complementBook,
 } from "@/lib/orders/book-math";
 import { buildOrderTypedData, type OrderIntent } from "@/lib/orders/eip712";
-import { submitEnabled, submitSignedOrder } from "@/lib/orders/data";
+import { submitEnabled, submitSignedOrder, OrderRejectedError } from "@/lib/orders/data";
+import { getCollateralDollars, getPositionShares } from "@/lib/profile/data";
 import { RollingNumber } from "../profile/RollingNumber";
 import { Frame } from "./Frame";
 import type { TradeSelection } from "./OutcomesPanel";
@@ -32,6 +33,34 @@ function sanitizeNumeric(raw: string): string {
   const firstDot = cleaned.indexOf(".");
   if (firstDot === -1) return cleaned;
   return cleaned.slice(0, firstDot + 1) + cleaned.slice(firstDot + 1).replace(/\./g, "");
+}
+
+/** details amounts are 1e8 fixed-point strings. */
+const dollars = (v: unknown) => (Number(v) / 1e8).toFixed(2);
+
+function rejectionMessage(e: OrderRejectedError): string {
+  switch (e.code) {
+    case "INSUFFICIENT_COLLATERAL":
+      return `not enough funds — $${dollars(e.details?.available)} available, $${dollars(e.details?.required)} needed`;
+    case "INSUFFICIENT_SHARES":
+      return `not enough shares — ${dollars(e.details?.available)} held, ${dollars(e.details?.required)} needed`;
+    case "MARKET_ENDED":
+      return "market has ended";
+    case "MARKET_NOT_OPEN":
+      return "market is not accepting orders";
+    case "INVALID_TICK":
+      return "price must be on the tick grid";
+    case "BELOW_MIN_SIZE":
+      return "order below the minimum size";
+    case "ORDER_EXPIRED":
+    case "STALE_NONCE":
+    case "DUPLICATE_ORDER":
+      return "order went stale — try again";
+    case "INVALID_SIGNATURE":
+      return "signature rejected — reconnect your wallet";
+    default:
+      return e.message.slice(0, 120);
+  }
 }
 
 export function TradePanel({
@@ -89,6 +118,24 @@ export function TradePanel({
     };
   }, []);
 
+  // Balance preflight (best-effort UX — the backend lock is authoritative).
+  // null = unknown (loading/failed); never blocks on unknown.
+  const [collateral, setCollateral] = useState<{ available: number; locked: number } | null>(null);
+  const [heldShares, setHeldShares] = useState<number | null>(null);
+  const [balanceEpoch, setBalanceEpoch] = useState(0); // bump to refetch after a rejection
+
+  // Hydration-safe clock: null on first paint (assume live), real after mount.
+  // setState deferred into a resolved-promise callback (not called directly
+  // in the effect body) per the project's set-state-in-effect lint rule.
+  const [now, setNow] = useState<number | null>(null);
+  useEffect(() => {
+    let alive = true;
+    Promise.resolve().then(() => alive && setNow(Date.now()));
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   const pos = selection
     ? market.outcomes.findIndex((o) => o.id === selection.outcomeId)
     : -1;
@@ -104,16 +151,44 @@ export function TradePanel({
       ? market.outcomes.findIndex((o) => o.id !== outcome.id)
       : -1;
   const noOutcome = noPos !== -1 ? market.outcomes[noPos] : null;
+  const tradedOutcome = side === "no" && noOutcome ? noOutcome : outcome;
   const sideBook =
     side === "no"
       ? noPos !== -1
         ? books[noPos] ?? EMPTY_BOOK
         : complementBook(book)
       : book;
-  const live = market.status === "ACTIVE";
+  const ended = now != null && new Date(market.endTime).getTime() <= now;
+  const live = market.status === "ACTIVE" && !ended;
   // Per lib/markets/types.ts: tickSize "1000000" == 1¢ (price units); minOrderSize "100000000" == 1 share (amount units).
   const tickCents = Number(market.tickSize) / 1_000_000;
   const minShares = Number(market.minOrderSize) / 100_000_000;
+
+  useEffect(() => {
+    let alive = true;
+    if (!address) {
+      Promise.resolve().then(() => alive && setCollateral(null));
+    } else {
+      getCollateralDollars(address).then((c) => alive && setCollateral(c));
+    }
+    return () => {
+      alive = false;
+    };
+  }, [address, balanceEpoch]);
+
+  useEffect(() => {
+    let alive = true;
+    if (!address || !tradedOutcome) {
+      Promise.resolve().then(() => alive && setHeldShares(null));
+    } else {
+      getPositionShares(address, market.id, tradedOutcome.index).then(
+        (s) => alive && setHeldShares(s),
+      );
+    }
+    return () => {
+      alive = false;
+    };
+  }, [address, market.id, tradedOutcome, balanceEpoch]);
 
   /* ---------- derived order math ---------- */
   const est = useMemo(() => {
@@ -136,21 +211,27 @@ export function TradePanel({
   /* ---------- validation → CTA state ladder ---------- */
   // Each check returns the disabled-reason label or null.
   const invalidReason = !live
-    ? "market closed"
+    ? ended
+      ? "market ended"
+      : "market closed"
     : !outcome
       ? "select an outcome"
       : mode === "MARKET" && (Number(amount) || 0) <= 0
         ? null // empty input: CTA shows action label, disabled without reason row
         : mode === "MARKET" && est.shares <= 0
           ? "no liquidity"
-          : mode === "LIMIT" && ((Number(limitCents) || 0) <= 0 || (Number(limitShares) || 0) <= 0)
-            ? null
-            : mode === "LIMIT" &&
-              Math.abs((Number(limitCents) / tickCents) - Math.round(Number(limitCents) / tickCents)) > 1e-9
-              ? `price must step by ${tickCents}¢`
-              : est.shares > 0 && est.shares < minShares
-                ? `min order ${minShares} shares`
-                : null;
+          : action === "buy" && collateral != null && est.cost > collateral.available + 1e-9
+            ? `insufficient funds — $${collateral.available.toFixed(2)} available`
+            : action === "sell" && heldShares != null && est.shares > heldShares + 1e-9
+              ? `you hold ${heldShares.toFixed(2)} shares`
+              : mode === "LIMIT" && ((Number(limitCents) || 0) <= 0 || (Number(limitShares) || 0) <= 0)
+                ? null
+                : mode === "LIMIT" &&
+                  Math.abs((Number(limitCents) / tickCents) - Math.round(Number(limitCents) / tickCents)) > 1e-9
+                  ? `price must step by ${tickCents}¢`
+                  : est.shares > 0 && est.shares < minShares
+                    ? `min order ${minShares} shares`
+                    : null;
   const ready =
     live && outcome && est.shares >= minShares && invalidReason == null && phase !== "signing" && phase !== "submitting";
 
@@ -168,7 +249,7 @@ export function TradePanel({
       marketId: market.id,
       // The outcome token actually traded: a binary NO order trades the real
       // NO token at its own book's price — no complement re-encoding.
-      outcome: side === "no" && noOutcome ? noOutcome : outcome,
+      outcome: tradedOutcome!,
       side,
       action,
       orderType: mode,
@@ -190,6 +271,18 @@ export function TradePanel({
       setAmount("");
       setLimitShares("");
     } catch (e) {
+      // Backend rejection: check first — OrderRejectedError's fallback
+      // message is literally "order rejected (N)", which would otherwise
+      // match the wallet-rejection regex below and get silently swallowed.
+      if (e instanceof OrderRejectedError) {
+        setError(rejectionMessage(e));
+        setPhase("error");
+        // A balance rejection means our preflight numbers were stale.
+        if (e.code === "INSUFFICIENT_COLLATERAL" || e.code === "INSUFFICIENT_SHARES") {
+          setBalanceEpoch((n) => n + 1);
+        }
+        return;
+      }
       // Wallet rejection = user changed their mind, silent reset.
       const msg = e instanceof Error ? e.message : String(e);
       if (/rejected|denied/i.test(msg)) {
@@ -440,6 +533,18 @@ export function TradePanel({
 
       {/* readout rows */}
       <div className="flex flex-col gap-1.5 px-5 pt-4 font-mono text-[11px] uppercase tracking-[0.14em] text-muted">
+        <div className="flex items-center justify-between">
+          <span>{action === "buy" ? "balance" : "you hold"}</span>
+          <span className="tabular-nums text-fg/85">
+            {action === "buy"
+              ? collateral != null
+                ? `$${collateral.available.toFixed(2)}`
+                : "—"
+              : heldShares != null
+                ? `${heldShares.toFixed(2)} sh`
+                : "—"}
+          </span>
+        </div>
         <div className="flex items-center justify-between">
           <span>avg price</span>
           <span className="tabular-nums text-fg/85">{est.avg > 0 ? `${oneDp(est.avg)}¢` : "—"}</span>

@@ -40,3 +40,47 @@ export async function updateUserIdentity(
   }
   return (await res.json()) as UserIdentity;
 }
+
+/** Ledger balances in dollars (API is 1e8 fixed-point strings). Null = fetch failed. */
+export async function getCollateralDollars(
+  wallet: string,
+): Promise<{ available: number; locked: number } | null> {
+  try {
+    const res = await fetch(`${API}/profiles/${wallet}/collateral`);
+    if (!res.ok) return null;
+    const data = (await res.json()) as { available: string; locked: string };
+    return {
+      available: Number(data.available) / 1e8,
+      locked: Number(data.locked) / 1e8,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Available shares of one outcome (for sell preflight). The positions API is
+ * wallet-scoped; filter client-side — fine at this scale. 0 = no position,
+ * null = fetch failed (preflight should not block on unknown).
+ */
+export async function getPositionShares(
+  wallet: string,
+  marketId: string,
+  outcomeIndex: number,
+): Promise<number | null> {
+  try {
+    const res = await fetch(
+      `${API}/profiles/${wallet}/current-position?limit=100`,
+    );
+    if (!res.ok) return null;
+    const data = (await res.json()) as {
+      items?: { marketId: string; outcomeIndex: number; availableAmount: string }[];
+    };
+    const pos = (data.items ?? []).find(
+      (p) => p.marketId === marketId && p.outcomeIndex === outcomeIndex,
+    );
+    return pos ? Number(pos.availableAmount) / 1e8 : 0;
+  } catch {
+    return null;
+  }
+}
