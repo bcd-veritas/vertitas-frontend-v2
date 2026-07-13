@@ -8,7 +8,17 @@ import type { ApiMarket } from "@/lib/markets/types";
 import { Topbar } from "../app/Topbar";
 import { SystemFooter } from "../app/SystemFooter";
 import { mockProfile } from "@/lib/profile/mock";
-import { getUserIdentity, type UserIdentity } from "@/lib/profile/data";
+import type { ActivityRow, OpenOrderRow } from "@/lib/profile/mock";
+import {
+  getUserIdentity,
+  getPortfolioValue,
+  getCollateralDollars,
+  getMarketsTraded,
+  getOpenOrders,
+  getTradeHistory,
+  type UserIdentity,
+  type PortfolioValue,
+} from "@/lib/profile/data";
 import { EditProfileDrawer } from "./EditProfileDrawer";
 import { GradientAvatar } from "./GradientAvatar";
 import { HeroValue } from "./HeroValue";
@@ -27,6 +37,14 @@ export function ProfilePage({ markets }: { markets: ApiMarket[] }) {
   const [identity, setIdentity] = useState<UserIdentity | null>(null);
   const [editing, setEditing] = useState(false);
 
+  // Live wallet data (real API). PnL time-series, win rate and lifetime volume
+  // have no endpoint yet, so those still come from mockProfile below.
+  const [portfolio, setPortfolio] = useState<PortfolioValue | null>(null);
+  const [cashDollars, setCashDollars] = useState<number>(0);
+  const [marketsTraded, setMarketsTraded] = useState<number | null>(null);
+  const [openOrders, setOpenOrders] = useState<OpenOrderRow[]>([]);
+  const [history, setHistory] = useState<ActivityRow[]>([]);
+
   const profile = useMemo(() => (address ? mockProfile(address) : null), [address]);
 
   // Saved trading identity (username/email) from the middleware; null until
@@ -36,6 +54,30 @@ export function ProfilePage({ markets }: { markets: ApiMarket[] }) {
     let alive = true;
     getUserIdentity(address).then((u) => {
       if (alive) setIdentity(u);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [address]);
+
+  // Portfolio value, positions, collateral, markets traded, open orders and
+  // trade history — fetched together and mapped into the presentational shapes.
+  useEffect(() => {
+    if (!address) return;
+    let alive = true;
+    Promise.all([
+      getPortfolioValue(address),
+      getCollateralDollars(address),
+      getMarketsTraded(address),
+      getOpenOrders(address),
+      getTradeHistory(address),
+    ]).then(([pv, cash, markets, orders, trades]) => {
+      if (!alive) return;
+      setPortfolio(pv);
+      setCashDollars(cash ? cash.available + cash.locked : 0);
+      setMarketsTraded(markets);
+      setOpenOrders(orders);
+      setHistory(trades);
     });
     return () => {
       alive = false;
@@ -70,6 +112,13 @@ export function ProfilePage({ markets }: { markets: ApiMarket[] }) {
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };
+
+  // Hero value = mark value of open positions + collateral on hand. 
+  // PnL is the unrealized figure across open positions (all-time realized PnL has no
+  // endpoint yet). Both default to 0 until the fetch resolves.
+  const portfolioValueCents =
+    (portfolio?.valueCents ?? 0) + Math.round(cashDollars * 100);
+  const pnlCents = portfolio?.pnlCents ?? 0;
 
   const latestUsd = profile.pnlSeries[profile.pnlSeries.length - 1]?.usd ?? 0;
   const readoutUsd = hoverUsd ?? latestUsd;
@@ -121,17 +170,19 @@ export function ProfilePage({ markets }: { markets: ApiMarket[] }) {
           </span>
         </div>
 
-        {/* Hero band: headline + outline number over the instance cloud. */}
+        {/* Hero band: headline + outline number over the instance cloud.
+            value + pnl are live; winRate has no endpoint yet (mock). */}
         <HeroValue
           title={displayName}
-          valueCents={profile.portfolioValueCents}
-          pnlCents={profile.pnlAllTimeCents}
+          valueCents={portfolioValueCents}
+          pnlCents={pnlCents}
           winRatePct={profile.winRatePct}
         />
 
+        {/* marketsTraded is live; volume + winRate have no endpoint yet (mock). */}
         <MetricBlocks
           volumeTradedCents={profile.volumeTradedCents}
-          marketsTraded={profile.marketsTraded}
+          marketsTraded={marketsTraded ?? 0}
           winRatePct={profile.winRatePct}
         />
 
@@ -161,10 +212,12 @@ export function ProfilePage({ markets }: { markets: ApiMarket[] }) {
           </div>
         </section>
 
+        {/* Live positions, resting orders and completed-trade history; each
+            table renders its own empty state until the fetch resolves. */}
         <PortfolioTable
-          positions={profile.positions}
-          openOrders={profile.openOrders}
-          history={profile.activity}
+          positions={portfolio?.positions ?? []}
+          openOrders={openOrders}
+          history={history}
         />
       </main>
       <SystemFooter markets={markets} />
