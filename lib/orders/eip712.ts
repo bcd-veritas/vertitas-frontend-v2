@@ -43,6 +43,10 @@ export type OrderIntent = {
   /** Price of the SELECTED side in cents, already snapped to the tick grid. */
   priceCents: number;
   shares: number;
+  /** Order expiry (unix ms) = the market's endTime — orders live for the
+   *  market's whole tradeable life, never expiring early and stranding the
+   *  book. Trading is blocked past endTime and settlement cancels the rest. */
+  expirationMs: number;
 };
 
 /** The exact JSON body POST /orders expects (backend SignedOrder sans signature). */
@@ -102,7 +106,7 @@ export function buildOrderTypedData(
     orderType: intent.orderType,
     price: (priceCents / 100).toFixed(6),
     amount: intent.shares.toFixed(6),
-    expiration: Date.now() + 24 * 60 * 60 * 1000,
+    expiration: intent.expirationMs,
     nonce: String(Date.now()),
   };
 

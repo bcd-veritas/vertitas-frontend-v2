@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
+import type { MarketResolution } from "@/lib/markets/types";
+import { getMarketResolution } from "@/lib/markets/data";
 import { oneDp, toCents } from "@/lib/markets/format";
 import { complementBook } from "@/lib/orders/book-math";
 import { flatlinePad, ProbabilityChart, type ChartSeries } from "../charts/ProbabilityChart";
 import { MonoLabel } from "../landing/ui/MonoLabel";
-import { ComingSoonBody } from "./ComingSoon";
 import { Ladder } from "./Ladder";
 import { Frame } from "./Frame";
 import type { RankedRow } from "./rank";
@@ -43,6 +44,49 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "graph", label: "Graph" },
   { id: "resolution", label: "Resolution" },
 ];
+
+/** Resolution tab body — fetches once per mount (i.e. per row expansion). */
+function ResolutionTabBody({ marketId }: { marketId: string }) {
+  const [data, setData] = useState<MarketResolution | null>(null);
+  useEffect(() => {
+    let alive = true;
+    getMarketResolution(marketId).then((d) => alive && setData(d));
+    return () => {
+      alive = false;
+    };
+  }, [marketId]);
+
+  if (!data) {
+    return (
+      <p className="py-10 text-center font-mono text-[11px] uppercase tracking-[0.24em] text-muted/70">
+        loading…
+      </p>
+    );
+  }
+  const r = data.resolution;
+  return (
+    <div className="px-4 py-3 font-mono text-[11px] uppercase tracking-[0.1em] text-muted flex flex-col gap-1.5">
+      <div className="flex justify-between">
+        <span>status</span>
+        <span className="text-fg/85">{data.status}</span>
+      </div>
+      <div className="flex justify-between">
+        <span>outcome</span>
+        <span className="text-fg/85">{r?.winningLabel ?? "—"}</span>
+      </div>
+      <div className="flex justify-between">
+        <span>resolved_at</span>
+        <span className="tabular-nums text-fg/85">
+          {r?.resolvedAt ? r.resolvedAt.slice(0, 16) : "—"}
+        </span>
+      </div>
+      <div className="flex justify-between">
+        <span>disputed</span>
+        <span className="text-fg/85">{r?.disputed ? "yes" : "no"}</span>
+      </div>
+    </div>
+  );
+}
 
 /** Mounted only while its row is open — closing resets the tab to Order Book. */
 function Expansion({
@@ -143,7 +187,7 @@ function Expansion({
               no prints yet
             </p>
           ))}
-        {tab === "resolution" && <ComingSoonBody />}
+        {tab === "resolution" && <ResolutionTabBody marketId={row.outcome.marketId} />}
       </div>
     </div>
   );

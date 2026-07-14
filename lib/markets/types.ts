@@ -137,3 +137,18 @@ export type MarketHoldersResponse = {
   total: number;
   totalPages: number;
 };
+
+// GET /markets/:id/resolution
+export type MarketResolution = {
+  marketId: string;
+  status: string;
+  resolution: {
+    winningOutcome: number | null;
+    winningLabel: string | null;
+    proposedAt: string;
+    resolvedAt: string | null;
+    disputed: boolean;
+    disputedAt: string | null;
+    disputeResolved: boolean;
+  } | null;
+};

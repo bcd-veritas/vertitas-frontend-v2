@@ -255,6 +255,8 @@ export function TradePanel({
       orderType: mode,
       priceCents: snapped,
       shares: est.shares,
+      // Live until the market ends — no premature expiry emptying the book.
+      expirationMs: new Date(market.endTime).getTime(),
     };
     setError(null);
     setPhase("signing");

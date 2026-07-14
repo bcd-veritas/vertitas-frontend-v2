@@ -15,6 +15,7 @@ import { RelatedMarkets } from "./RelatedMarkets";
 import { MarketComments } from "./MarketComments";
 import { OutcomesPanel, type TradeSelection } from "./OutcomesPanel";
 import { PriceChart } from "./PriceChart";
+import { ResolutionPanel } from "./ResolutionPanel";
 import { TradePanel } from "./TradePanel";
 
 gsap.registerPlugin(ScrollTrigger, useGSAP);
@@ -139,15 +140,19 @@ export function TerminalPage({
           {/* Rail */}
           <div className="flex flex-col gap-8 lg:sticky lg:top-20">
             <div data-rise>
-              <TradePanel
-                market={market}
-                selection={selection}
-                books={books}
-                accent={ticketColor}
-                binary={binary}
-                action={action}
-                onActionChange={setAction}
-              />
+              {market.status === "ACTIVE" ? (
+                <TradePanel
+                  market={market}
+                  selection={selection}
+                  books={books}
+                  accent={ticketColor}
+                  binary={binary}
+                  action={action}
+                  onActionChange={setAction}
+                />
+              ) : (
+                <ResolutionPanel market={market} />
+              )}
             </div>
             <div data-rise>
               <RulesPanel market={market} />
