@@ -1,15 +1,65 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { Search } from "lucide-react";
 import { MonoLabel } from "../landing/ui/MonoLabel";
-import { useAccount, useBalance } from "wagmi";
+import { useAccount } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { GradientAvatar } from "../profile/GradientAvatar";
+import { getCollateralDollars } from "@/lib/profile/data";
+
+/** Off-chain ledger balances beside the profile pill — available (spendable)
+ *  and locked (held by resting orders). These are the DB collateral columns,
+ *  NOT on-chain VTK; MetaMask does not reflect them. Rendered as a borderless
+ *  stat readout rather than a pill. */
+function CollateralReadout() {
+  const { address, isConnected } = useAccount();
+  const [collateral, setCollateral] = useState<{
+    available: number;
+    locked: number;
+  } | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    if (!isConnected || !address) {
+      Promise.resolve().then(() => alive && setCollateral(null));
+    } else {
+      getCollateralDollars(address).then((c) => alive && setCollateral(c));
+    }
+    return () => {
+      alive = false;
+    };
+  }, [address, isConnected]);
+
+  if (!isConnected || !address || !collateral) return null;
+
+  const money = (n: number) =>
+    n.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+
+  return (
+    <div className="hidden sm:flex items-center gap-4 shrink-0">
+      <span className="flex flex-col items-end gap-0.5 leading-none">
+        <MonoLabel className="text-[9px]! tracking-[0.16em]">Available</MonoLabel>
+        <span className="font-mono text-xs text-accent tabular-nums">
+          ${money(collateral.available)}
+        </span>
+      </span>
+      <span className="flex flex-col items-end gap-0.5 leading-none">
+        <MonoLabel className="text-[9px]! tracking-[0.16em]">Locked</MonoLabel>
+        <span className="font-mono text-xs text-fg/60 tabular-nums">
+          ${money(collateral.locked)}
+        </span>
+      </span>
+    </div>
+  );
+}
 
 function ConnectButton() {
   const { address, isConnected } = useAccount();
-  const { data: balance } = useBalance({ address });
   const { openConnectModal } = useConnectModal();
 
   if (!isConnected || !address) {
@@ -25,9 +75,6 @@ function ConnectButton() {
   }
 
   const short = `${address.slice(0, 6)}…${address.slice(-4)}`;
-  const bal = balance
-    ? `${Number(balance.formatted).toLocaleString(undefined, { maximumFractionDigits: 3 })} ${balance.symbol}`
-    : null;
 
   return (
     <Link
@@ -36,8 +83,6 @@ function ConnectButton() {
       className="pill pill-ghost py-1.5! px-4! text-xs font-mono uppercase tracking-wider inline-flex items-center gap-2 shrink-0"
     >
       <GradientAvatar seed={address} size={18} />
-      {bal && <span className="text-accent tabular-nums normal-case">{bal}</span>}
-      {bal && <span aria-hidden="true" className="text-line">|</span>}
       {short}
     </Link>
   );
@@ -80,6 +125,7 @@ export function Topbar({
           <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" aria-hidden="true" />
           <MonoLabel>markets.online</MonoLabel>
         </span>
+        <CollateralReadout />
         <ConnectButton />
       </div>
     </header>
