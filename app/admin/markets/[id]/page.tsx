@@ -8,6 +8,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Frame } from "@/components/terminal/Frame";
 import { TradingTab } from "@/components/admin/market/TradingTab";
 import { ParticipantsTab } from "@/components/admin/market/ParticipantsTab";
+import { ResolutionTab } from "@/components/admin/market/ResolutionTab";
 import { centsLabel, sharesLabel } from "@/lib/markets/format";
 import { getMarketDetail } from "@/lib/admin/data";
 import { STATUS_COLOR } from "@/components/admin/statusMeta";
@@ -80,14 +81,6 @@ function Overview({ m }: { m: MarketDetail }) {
   );
 }
 
-function Stub({ name }: { name: string }) {
-  return (
-    <Frame label={name} className="p-8">
-      <p className="text-center font-mono text-xs text-muted">{name} monitoring — coming in a later slice.</p>
-    </Frame>
-  );
-}
-
 export default function MarketDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const [tab, setTab] = useState<Tab>("Overview");
@@ -147,7 +140,7 @@ export default function MarketDetailPage({ params }: { params: Promise<{ id: str
       ) : tab === "Participants" ? (
         <ParticipantsTab market={m} />
       ) : (
-        <Stub name={tab} />
+        <ResolutionTab marketId={id} resolverType={m.resolverType} outcomes={m.outcomes} />
       )}
     </div>
   );

@@ -15,6 +15,7 @@ import { RelatedMarkets } from "./RelatedMarkets";
 import { MarketComments } from "./MarketComments";
 import { OutcomesPanel, type TradeSelection } from "./OutcomesPanel";
 import { PriceChart } from "./PriceChart";
+import { ResolutionPanel } from "./ResolutionPanel";
 import { TradePanel } from "./TradePanel";
 
 gsap.registerPlugin(ScrollTrigger, useGSAP);
@@ -38,20 +39,23 @@ export function TerminalPage({
   });
   const binary = binaryYesOutcome(market.outcomes) != null;
 
-  // Expanded tower row — while open, the whole page focuses on it: the hero
-  // readout rolls to its chance, and the waves + ticket retint to its color.
-  const [openKey, setOpenKey] = useState<string | null>(null);
-
-  // Buy/Sell lives here so the trade ticket AND the outcomes-list buttons
-  // (Buy Yes/No ↔ Sell Yes/No) stay in lockstep.
-  const [action, setAction] = useState<"buy" | "sell">("buy");
-
   // One ranking, one palette: hero, chart, tower, and ticket all read from it.
   const rows = useMemo(
     () => rankRows(market.outcomes, books, series),
     [market.outcomes, books, series],
   );
   const colors = useMemo(() => colorMap(rows), [rows]);
+
+  // Expanded tower row — while open, the whole page focuses on it: the hero
+  // readout rolls to its chance, and the waves + ticket retint to its color.
+  // Auto-expand the first (top-ranked) row on load.
+  const [openKey, setOpenKey] = useState<string | null>(
+    () => rows[0]?.outcome.id ?? null,
+  );
+
+  // Buy/Sell lives here so the trade ticket AND the outcomes-list buttons
+  // (Buy Yes/No ↔ Sell Yes/No) stay in lockstep.
+  const [action, setAction] = useState<"buy" | "sell">("buy");
 
   // Hero focus: the expanded row, else the armed selection (so collapsing a
   // row keeps its readout), else the market leader.
@@ -139,15 +143,19 @@ export function TerminalPage({
           {/* Rail */}
           <div className="flex flex-col gap-8 lg:sticky lg:top-20">
             <div data-rise>
-              <TradePanel
-                market={market}
-                selection={selection}
-                books={books}
-                accent={ticketColor}
-                binary={binary}
-                action={action}
-                onActionChange={setAction}
-              />
+              {market.status === "ACTIVE" ? (
+                <TradePanel
+                  market={market}
+                  selection={selection}
+                  books={books}
+                  accent={ticketColor}
+                  binary={binary}
+                  action={action}
+                  onActionChange={setAction}
+                />
+              ) : (
+                <ResolutionPanel market={market} />
+              )}
             </div>
             <div data-rise>
               <RulesPanel market={market} />
