@@ -13,6 +13,7 @@ import { TerminalHero, type LeaderReadout } from "./TerminalHero";
 import { RulesPanel } from "./RulesPanel";
 import { RelatedMarkets } from "./RelatedMarkets";
 import { MarketComments } from "./MarketComments";
+import { OracleDesk } from "./oracle/OracleDesk";
 import { OutcomesPanel, type TradeSelection } from "./OutcomesPanel";
 import { PriceChart } from "./PriceChart";
 import { ResolutionPanel } from "./ResolutionPanel";
@@ -118,6 +119,7 @@ export function TerminalPage({
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_380px] gap-x-6 gap-y-8 items-start">
           {/* Main column */}
           <div className="flex flex-col gap-8 min-w-0">
+            <OracleDesk market={market} />
             <div data-rise>
               <PriceChart outcomes={market.outcomes} series={series} colors={colors} />
             </div>

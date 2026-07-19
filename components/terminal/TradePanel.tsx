@@ -58,6 +58,8 @@ function rejectionMessage(e: OrderRejectedError): string {
       return "order went stale — try again";
     case "INVALID_SIGNATURE":
       return "signature rejected — reconnect your wallet";
+    case "SELF_TRADE":
+      return "this would match your own resting order — cancel it first or change your price";
     default:
       return e.message.slice(0, 120);
   }

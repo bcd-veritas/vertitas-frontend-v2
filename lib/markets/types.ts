@@ -27,6 +27,10 @@ export type ApiMarket = {
   outcomes: ApiOutcome[];
   resolutionSource: string;
   conditionId: string | null;
+  /** Resolver kind: "ADMIN" | "UMA" | "CHAINLINK_DATA_FEED". */
+  resolverType: string;
+  /** Deployed PredictionMarket contract address (the oracle key source). */
+  marketAddress: string | null;
   tickSize: string; // fixed-point price units, "1000000" = 1¢
   minOrderSize: string; // fixed-point amount units, "100000000" = 1 share
 };
@@ -82,6 +86,10 @@ export type MarketDTO = {
 
   resolutionSource: string | null;
   conditionId: string | null;
+  /** Resolver kind: "ADMIN" | "UMA" | "CHAINLINK_DATA_FEED". */
+  resolverType: string;
+  /** Deployed PredictionMarket contract address (the oracle key source). */
+  marketAddress: string | null;
   tickSize: string;
   minOrderSize: string;
 

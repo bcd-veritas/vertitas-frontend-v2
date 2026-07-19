@@ -42,6 +42,8 @@ function mapMarket(dto: MarketDTO): ApiMarket {
 
     resolutionSource: dto.resolutionSource ?? "",
     conditionId: dto.conditionId,
+    resolverType: dto.resolverType,
+    marketAddress: dto.marketAddress,
     tickSize: dto.tickSize,
     minOrderSize: dto.minOrderSize,
 
