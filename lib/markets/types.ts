@@ -51,6 +51,7 @@ export type FeaturedComment = {
   createdAt: string;
   user: CommentAuthor | null;
   replies: FeaturedComment[];
+  parentId?: string | null;
 };
 
 export type FeaturedMarket = ApiMarket & {
