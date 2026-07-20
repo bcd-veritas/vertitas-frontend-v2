@@ -193,6 +193,8 @@ export type FundsResponse = {
   };
   treasury: { address: string; vtk: string | null };
   vault: { address: string; usdcc: string | null };
+  /** Resolution-cron signer (resolveDispute/settle). Empty address = key not configured. */
+  relayer: { address: string; eth: string | null };
   vtkTotalSupply: string | null;
   solvency: { vtkSupply: string | null; vaultUsdcc: string | null; inSync: boolean };
 };
