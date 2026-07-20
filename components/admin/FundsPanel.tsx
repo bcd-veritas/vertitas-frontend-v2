@@ -211,6 +211,10 @@ export function FundsPanel() {
   }
 
   const lowGas = data.operator.eth != null && BigInt(data.operator.eth) < LOW_GAS_WEI;
+  const relayerLowGas =
+    data.relayer.address !== "" &&
+    data.relayer.eth != null &&
+    BigInt(data.relayer.eth) < LOW_GAS_WEI;
   const noReward = data.treasury.vtk === "0";
   const inSync = data.solvency.inSync;
 
@@ -312,14 +316,19 @@ export function FundsPanel() {
             delay={140}
           />
           <AccountCard
-            title="Relayers"
-            color="#a89f9c"
-            address=""
-            role="Relayer balances, low-gas alerts and funding via ProtocolAdmin.fundRelayer"
-            badge={{ text: "coming soon", color: "#a89f9c" }}
-            primaryLabel="Relayer balance"
-            primaryValue="—"
-            dim
+            title="Relayer"
+            color="#9b8ec4"
+            address={data.relayer.address}
+            role="Resolution signer — pays gas for resolveDispute and settle; if it runs dry, disputed markets silently queue until refilled"
+            badge={
+              data.relayer.address === ""
+                ? { text: "not configured", color: "#a89f9c" }
+                : relayerLowGas
+                  ? { text: "low gas", color: "#c97a6d" }
+                  : null
+            }
+            primaryLabel="Sepolia ETH (gas)"
+            primaryValue={fmtUnits(data.relayer.eth, 18, 4)}
             delay={210}
           />
         </div>
