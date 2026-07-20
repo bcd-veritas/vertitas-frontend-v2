@@ -97,7 +97,14 @@ function VsDivider() {
  */
 export function OracleDesk({ market }: { market: ApiMarket }) {
   const { isConnected } = useAccount();
-  const uma = useUmaState(market);
+  // Poll the chain ONLY where an oracle fight can exist: UMA market, past
+  // its end, not yet resolved. Everywhere else (admin markets, still-trading
+  // UMA, resolved pages, spectators on those) the hook stays dormant — zero
+  // RPC. liveStatus flows in via the market prop, so the switch flips (and
+  // polling starts/stops) without a refresh when the market ends/resolves.
+  const oracleLive =
+    market.resolverType === "UMA" && market.status === "ENDED";
+  const uma = useUmaState(market, oracleLive);
 
   if (market.resolverType !== "UMA") return null;
   if (market.status !== "ENDED") return null;

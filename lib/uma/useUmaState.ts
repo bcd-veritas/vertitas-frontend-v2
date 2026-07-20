@@ -48,12 +48,17 @@ export type UmaState = {
 
 const ORACLE = { address: UMA_ORACLE, abi: umaOracleAbi } as const;
 
-export function useUmaState(market: ApiMarket): UmaState {
+export function useUmaState(market: ApiMarket, enabled = true): UmaState {
   const { address } = useAccount();
   const client = usePublicClient();
   const marketAddress = (market.marketAddress ?? null) as
     | `0x${string}`
     | null;
+
+  // `enabled` gates the QUERIES, not just the render: hooks must run on
+  // every market page (React rules), but only pages where an oracle fight
+  // can exist should spend RPC calls. When false, every read below is
+  // dormant — zero requests.
 
   // The oracle keys everything by the market's on-chain marketId — never
   // persisted in the DB, so read it off the market contract first.
@@ -61,7 +66,7 @@ export function useUmaState(market: ApiMarket): UmaState {
     address: marketAddress ?? undefined,
     abi: predictionMarketAbi,
     functionName: "marketId",
-    query: { enabled: marketAddress != null, staleTime: Infinity },
+    query: { enabled: enabled && marketAddress != null, staleTime: Infinity },
   });
 
   // Note: getResolutionRequest is deliberately NOT polled here — its
@@ -79,7 +84,10 @@ export function useUmaState(market: ApiMarket): UmaState {
       { ...ORACLE, functionName: "quorumBps" },
       { ...ORACLE, functionName: "challengeWindow" },
     ],
-    query: { enabled: onchainMarketId != null, refetchInterval: 10_000 },
+    query: {
+      enabled: enabled && onchainMarketId != null,
+      refetchInterval: 10_000,
+    },
   });
 
   const { data: wallet, refetch: refetchWallet } = useReadContracts({
@@ -100,7 +108,7 @@ export function useUmaState(market: ApiMarket): UmaState {
         args: [address!, UMA_ORACLE],
       },
     ],
-    query: { enabled: address != null, refetchInterval: 10_000 },
+    query: { enabled: enabled && address != null, refetchInterval: 10_000 },
   });
 
   const status =
@@ -125,7 +133,13 @@ export function useUmaState(market: ApiMarket): UmaState {
   const [lastVoteAtSec, setLastVoteAtSec] = useState<number | null>(null);
   const [eventsNonce, setEventsNonce] = useState(0);
   useEffect(() => {
-    if (!client || onchainMarketId == null || status == null || status < 2) {
+    if (
+      !enabled ||
+      !client ||
+      onchainMarketId == null ||
+      status == null ||
+      status < 2
+    ) {
       return;
     }
     let alive = true;
@@ -187,16 +201,17 @@ export function useUmaState(market: ApiMarket): UmaState {
     return () => {
       alive = false;
     };
-  }, [client, onchainMarketId, status, eventsNonce]);
+  }, [enabled, client, onchainMarketId, status, eventsNonce]);
 
   // Re-pull the event story on the same cadence as the view polls — votes by
   // other members must appear without a local tx, and one failed getLogs
   // (transient RPC) must not blank the assertion for the whole window.
   useEffect(() => {
-    if (onchainMarketId == null || status == null || status < 2) return;
+    if (!enabled || onchainMarketId == null || status == null || status < 2)
+      return;
     const id = setInterval(() => setEventsNonce((n) => n + 1), 10_000);
     return () => clearInterval(id);
-  }, [onchainMarketId, status]);
+  }, [enabled, onchainMarketId, status]);
 
   const deadlineMs =
     status != null && status >= 2 && assertTimeSec != null && challengeWindowSec != null

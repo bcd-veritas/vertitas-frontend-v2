@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Search } from "lucide-react";
 import { MonoLabel } from "../landing/ui/MonoLabel";
 import { useAccount } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { GradientAvatar } from "../profile/GradientAvatar";
 import { getCollateralDollars } from "@/lib/profile/data";
+import { useUserRoom } from "@/lib/realtime/hooks";
 
 /** Off-chain ledger balances beside the profile pill — available (spendable)
  *  and locked (held by resting orders). These are the DB collateral columns,
@@ -31,6 +32,13 @@ function CollateralReadout() {
       alive = false;
     };
   }, [address, isConnected]);
+
+  const refresh = useCallback(() => {
+    if (!isConnected || !address) return;
+    getCollateralDollars(address).then((c) => setCollateral(c));
+  }, [address, isConnected]);
+
+  useUserRoom(isConnected ? address : null, refresh);
 
   if (!isConnected || !address || !collateral) return null;
 

@@ -3,9 +3,11 @@
 import { useMemo, useState } from "react";
 import type { ApiOutcome, PricePoint } from "@/lib/markets/types";
 import { oneDp } from "@/lib/markets/format";
+import type { TradeBlip } from "@/lib/markets/useTradeBlips";
 import { flatlinePad, ProbabilityChart, type ChartSeries } from "../charts/ProbabilityChart";
 import { CHART_PALETTE } from "../charts/palette";
 import { Frame } from "./Frame";
+import { TradeBlips } from "./TradeBlips";
 
 type Timeframe = "24H" | "7D" | "ALL";
 const TIMEFRAMES: Timeframe[] = ["24H", "7D", "ALL"];
@@ -32,11 +34,14 @@ export function PriceChart({
   outcomes,
   series,
   colors,
+  blips = [],
 }: {
   outcomes: ApiOutcome[];
   series: PricePoint[][];
   /** Shared outcomeId → rank color map (see rank.ts). */
   colors: Record<string, string>;
+  /** Live fill indicators floated over the chart (see useTradeBlips). */
+  blips?: TradeBlip[];
 }) {
   const [tf, setTf] = useState<Timeframe>("ALL");
   const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
@@ -161,20 +166,23 @@ export function PriceChart({
         </div>
       )}
 
-      {visibleWithData.length === 0 ? (
-        <p className="py-16 text-center font-mono text-[11px] uppercase tracking-[0.24em] text-muted/70">
-          no prints in window
-        </p>
-      ) : (
-        <div className="px-2 pb-3">
-          <ProbabilityChart
-            series={windowed}
-            height={260}
-            highlightKey={highlight}
-            hiddenKeys={hidden}
-          />
-        </div>
-      )}
+      <div className="relative">
+        {visibleWithData.length === 0 ? (
+          <p className="py-16 text-center font-mono text-[11px] uppercase tracking-[0.24em] text-muted/70">
+            no prints in window
+          </p>
+        ) : (
+          <div className="px-2 pb-3">
+            <ProbabilityChart
+              series={windowed}
+              height={260}
+              highlightKey={highlight}
+              hiddenKeys={hidden}
+            />
+          </div>
+        )}
+        <TradeBlips blips={blips} />
+      </div>
     </Frame>
   );
 }

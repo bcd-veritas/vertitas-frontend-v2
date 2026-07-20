@@ -23,6 +23,7 @@ import {
   type UserMarketPosition,
 } from "@/lib/profile/data";
 import { centsLabel, sharesLabel } from "@/lib/markets/format";
+import { useUserRoom } from "@/lib/realtime/hooks";
 import { Frame } from "./Frame";
 
 type TabId = "comments" | "holders" | "activity" | "yours";
@@ -239,6 +240,12 @@ function YourPosition({
     };
   }, [address, marketId]);
 
+  useUserRoom(isConnected ? address : null, () => {
+    if (!address) return;
+    getUserMarketPositions(address, marketId).then(setPositions);
+    getUserMarketOpenOrders(address, marketId).then(setOrders);
+  });
+
   async function handleCancel(id: string) {
     if (!address) return;
     setCancelling(id);
@@ -368,9 +375,11 @@ function CommentsList({ comments }: { comments: FeaturedComment[] | null }) {
 export function MarketComments({
   marketId,
   outcomes,
+  refreshNonce = 0,
 }: {
   marketId: string;
   outcomes: ApiOutcome[];
+  refreshNonce?: number;
 }) {
   const { isConnected } = useAccount();
   const [tab, setTab] = useState<TabId>("comments");
@@ -407,7 +416,7 @@ export function MarketComments({
     return () => {
       alive = false;
     };
-  }, [tab, marketId]);
+  }, [tab, marketId, refreshNonce]);
 
   useEffect(() => {
     if (tab !== "activity") return;
@@ -418,7 +427,7 @@ export function MarketComments({
     return () => {
       alive = false;
     };
-  }, [tab, marketId]);
+  }, [tab, marketId, refreshNonce]);
 
   return (
     <Frame label="DISCUSSION" ariaLabel="Market discussion">

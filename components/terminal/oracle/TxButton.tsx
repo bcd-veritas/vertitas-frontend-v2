@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useChainId, usePublicClient } from "wagmi";
+import { useAccount, usePublicClient } from "wagmi";
 import { sepolia } from "wagmi/chains";
 import { friendlyTxError } from "@/lib/uma/errors";
 
@@ -29,7 +29,9 @@ export function TxButton({
   variant?: "filled" | "outline";
 }) {
   const client = usePublicClient();
-  const chainId = useChainId();
+  // Wallet-truth chain: useChainId() reports the config's chain and misses a
+  // wallet parked on mainnet — useAccount().chainId is the actual connection.
+  const { chainId } = useAccount();
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState<string | null>(null);
   const [hash, setHash] = useState<`0x${string}` | null>(null);

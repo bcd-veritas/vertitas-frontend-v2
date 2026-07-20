@@ -266,3 +266,30 @@ button:disabled,
     animation: none;
   }
 }
+
+/* Price chart — trade blips: rise in, hold, drift up and fade. `forwards`
+   keeps finished chips invisible until the hook's cap evicts them. */
+@keyframes blip-life {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  6%,
+  82% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+.blip-life {
+  animation: blip-life 4.6s ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .blip-life {
+    animation: blip-life 4.6s steps(1) forwards;
+  }
+}
