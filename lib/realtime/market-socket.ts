@@ -1,35 +1,11 @@
+"use client";
+
 import { useEffect, useRef } from "react";
-import { io, type Socket } from "socket.io-client";
 
 import { mapCommentPayload } from "@/lib/markets/data";
 import type { FeaturedComment } from "@/lib/markets/types";
-
-// The socket.io server attaches to the API's root HTTP server, NOT the
-// `/api/v1` REST prefix — so we connect to the origin, dropping the path.
-function socketOrigin(): string {
-  const api = process.env.NEXT_PUBLIC_API_URL ?? "";
-  try {
-    return new URL(api).origin;
-  } catch {
-    return "";
-  }
-}
-
-// One shared connection for the whole tab; rooms fan out per market.
-let socket: Socket | null = null;
-function getSocket(): Socket | null {
-  if (typeof window === "undefined") return null;
-  if (!socket) {
-    const origin = socketOrigin();
-    if (!origin) return null;
-    socket = io(origin, { transports: ["websocket"], autoConnect: true });
-  }
-  return socket;
-}
-
-// Ref-count subscribers per market so a second listener can't leave the room
-// out from under the first on unmount.
-const roomCounts = new Map<string, number>();
+import { getSocket } from "./socket";
+import { acquireRoom, releaseRoom } from "./hooks";
 
 type RawComment = Parameters<typeof mapCommentPayload>[0];
 
@@ -37,12 +13,18 @@ export interface CommentStreamHandlers {
   onNew?: (comment: FeaturedComment) => void;
   onUpdated?: (comment: FeaturedComment) => void;
   onDeleted?: (commentId: string) => void;
+  onCatchUp?: () => void;
 }
 
 /**
- * Subscribes to live comment events for one market over the shared socket.
- * Handlers are read through a ref, so passing fresh closures every render does
- * NOT re-subscribe. No-ops on the server and when no socket origin is set.
+ * Subscribes to live comment events for one market over the app's SHARED
+ * socket (see ./socket.ts — one connection per tab, rooms fan out on it).
+ * Room holds go through the shared acquire/release ledger in ./hooks.ts:
+ * TerminalPage's market hook and this stream ride the same market:{id} room,
+ * so whichever unmounts last is the one that actually unsubscribes.
+ *
+ * Handlers are read through a ref, so passing fresh closures every render
+ * does NOT re-subscribe. No-ops on the server and when no socket exists.
  */
 export function useMarketCommentStream(
   marketId: string | null,
@@ -58,13 +40,16 @@ export function useMarketCommentStream(
     if (!marketId) return;
     const s = getSocket();
     if (!s) return;
+    const key = "market:" + marketId;
+    acquireRoom(key);
 
     const join = () => s.emit("market:subscribe", marketId);
-    // Re-join on every (re)connect so a dropped socket recovers its room.
-    s.on("connect", join);
+    const rejoin = () => {
+      join();
+      handlersRef.current.onCatchUp?.();
+    };
+    s.on("connect", rejoin);
     if (s.connected) join();
-
-    roomCounts.set(marketId, (roomCounts.get(marketId) ?? 0) + 1);
 
     const onNew = (p: { marketId: string; comment: RawComment }) => {
       if (p?.marketId !== marketId || !p.comment) return;
@@ -84,18 +69,11 @@ export function useMarketCommentStream(
     s.on("comment:deleted", onDeleted);
 
     return () => {
-      s.off("connect", join);
+      s.off("connect", rejoin);
       s.off("comment:new", onNew);
       s.off("comment:updated", onUpdated);
       s.off("comment:deleted", onDeleted);
-
-      const next = (roomCounts.get(marketId) ?? 1) - 1;
-      if (next <= 0) {
-        roomCounts.delete(marketId);
-        s.emit("market:unsubscribe", marketId);
-      } else {
-        roomCounts.set(marketId, next);
-      }
+      if (releaseRoom(key)) s.emit("market:unsubscribe", marketId);
     };
   }, [marketId]);
 }

@@ -13,6 +13,7 @@ import {
   type UserMarketPosition,
 } from "@/lib/profile/data";
 import { centsLabel, sharesLabel } from "@/lib/markets/format";
+import { useUserRoom } from "@/lib/realtime/hooks";
 import { EmptyState, OutcomeChip, SectionLabel, SideBadge } from "./atoms";
 
 /** The connected wallet's stake in THIS market: holdings per outcome + resting
@@ -54,6 +55,14 @@ export function YourPosition({
       alive = false;
     };
   }, [address, marketId]);
+
+  // Live refresh: fills, cancels, expiry, and settlement all signal the
+  // wallet's user room — re-pull holdings and resting orders when they land.
+  useUserRoom(isConnected ? address : null, () => {
+    if (!address) return;
+    getUserMarketPositions(address, marketId).then(setPositions);
+    getUserMarketOpenOrders(address, marketId).then(setOrders);
+  });
 
   async function handleCancel(id: string) {
     if (!address) return;

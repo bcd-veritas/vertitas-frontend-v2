@@ -48,6 +48,10 @@ export function CommentsPanel({ marketId }: { marketId: string }) {
     onNew: (c) => setComments((prev) => upsertComment(prev, c)),
     onUpdated: (c) => setComments((prev) => upsertComment(prev, c)),
     onDeleted: (id) => setComments((prev) => removeComment(prev, id)),
+    onCatchUp: () =>
+      getMarketComments(marketId)
+        .then(setComments)
+        .catch(() => { }),
   });
 
   async function handlePost(text: string, parentId?: string) {

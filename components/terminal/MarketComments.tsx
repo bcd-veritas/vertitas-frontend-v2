@@ -24,9 +24,12 @@ const TABS: { id: TabId; label: string }[] = [
 export function MarketComments({
   marketId,
   outcomes,
+  refreshNonce = 0,
 }: {
   marketId: string;
   outcomes: ApiOutcome[];
+  /** Ticks on realtime market-activity signals — refetches the open tab. */
+  refreshNonce?: number;
 }) {
   const { isConnected } = useAccount();
   const [tab, setTab] = useState<TabId>("comments");
@@ -42,7 +45,9 @@ export function MarketComments({
     : TABS;
 
   // Holders/activity fetch lazily on first visit to their tab (and refetch on
-  // every revisit — cheap, and the data goes stale as trades land).
+  // every revisit — cheap, and the data goes stale as trades land). The
+  // refreshNonce dep re-pulls an OPEN tab when the socket layer signals
+  // market activity, so trades landing while you watch appear live.
   useEffect(() => {
     if (tab !== "holders") return;
     let alive = true;
@@ -52,7 +57,7 @@ export function MarketComments({
     return () => {
       alive = false;
     };
-  }, [tab, marketId]);
+  }, [tab, marketId, refreshNonce]);
 
   useEffect(() => {
     if (tab !== "activity") return;
@@ -63,7 +68,7 @@ export function MarketComments({
     return () => {
       alive = false;
     };
-  }, [tab, marketId]);
+  }, [tab, marketId, refreshNonce]);
 
   return (
     <Frame label="DISCUSSION" ariaLabel="Market discussion">
