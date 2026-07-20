@@ -72,6 +72,7 @@ type FeaturedCommentDTO = {
   content: string;
   likesCount: number;
   createdAt: string;
+  parentId?: string | null;
   user: { username: string | null; walletAddress: string } | null;
   replies?: FeaturedCommentDTO[];
 };
@@ -86,9 +87,16 @@ function mapComment(c: FeaturedCommentDTO): FeaturedComment {
     content: c.content,
     likesCount: c.likesCount,
     createdAt: c.createdAt,
+    parentId: c.parentId ?? null,
     user: c.user,
     replies: (c.replies ?? []).map(mapComment),
   };
+}
+
+/** Maps a single comment object (POST/PATCH/like responses + realtime payloads),
+ *  not the `{ items }` list shape. Exported so the realtime layer can reuse it. */
+export function mapCommentPayload(c: FeaturedCommentDTO): FeaturedComment {
+  return mapComment(c);
 }
 
 export async function getFeaturedMarkets(): Promise<FeaturedMarket[]> {
@@ -122,6 +130,87 @@ export async function getMarketComments(
     ? data
     : (data.items ?? []);
   return items.map(mapComment);
+}
+
+/** Surfaces the API's `{ message }` on failure so callers can show it inline. */
+async function commentWrite(
+  url: string,
+  method: "POST" | "PATCH" | "DELETE",
+  body?: Record<string, unknown>,
+): Promise<unknown> {
+  const res = await fetch(`${envPath}${url}`, {
+    method,
+    // Only set Content-Type when there's actually a body — Fastify's JSON
+    // parser 400s on an empty body sent with this header (like/unlike have
+    // no body; FST_ERR_CTP_EMPTY_JSON_BODY).
+    headers: body ? { "Content-Type": "application/json" } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  if (!res.ok) {
+    const payload = (await res.json().catch(() => null)) as {
+      message?: string;
+    } | null;
+    throw new Error(payload?.message ?? `HTTP ${res.status}`);
+  }
+
+  return res.json().catch(() => null);
+}
+
+export async function createComment(
+  marketId: string,
+  walletAddress: string,
+  content: string,
+  parentId?: string | null,
+): Promise<FeaturedComment> {
+  const data = (await commentWrite(
+    `/markets/${encodeURIComponent(marketId)}/comments`,
+    "POST",
+    { walletAddress, content, parentId: parentId ?? undefined },
+  )) as FeaturedCommentDTO;
+  return mapComment(data);
+}
+
+export async function editComment(
+  commentId: string,
+  walletAddress: string,
+  content: string,
+): Promise<FeaturedComment> {
+  const data = (await commentWrite(
+    `/comments/${encodeURIComponent(commentId)}`,
+    "PATCH",
+    { walletAddress, content },
+  )) as FeaturedCommentDTO;
+  return mapComment(data);
+}
+
+export async function deleteComment(
+  commentId: string,
+  walletAddress: string,
+): Promise<void> {
+  await commentWrite(`/comments/${encodeURIComponent(commentId)}`, "DELETE", {
+    walletAddress,
+  });
+}
+
+export async function likeComment(
+  commentId: string,
+): Promise<FeaturedComment> {
+  const data = (await commentWrite(
+    `/comments/${encodeURIComponent(commentId)}/like`,
+    "POST",
+  )) as FeaturedCommentDTO;
+  return mapComment(data);
+}
+
+export async function unlikeComment(
+  commentId: string,
+): Promise<FeaturedComment> {
+  const data = (await commentWrite(
+    `/comments/${encodeURIComponent(commentId)}/like`,
+    "DELETE",
+  )) as FeaturedCommentDTO;
+  return mapComment(data);
 }
 
 export async function getMarketCategories(): Promise<string[]> {

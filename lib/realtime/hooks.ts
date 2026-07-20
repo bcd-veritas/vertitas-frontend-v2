@@ -20,12 +20,15 @@ function useLatest<T>(value: T) {
 // holds; only the last release actually unsubscribes.
 const roomRefs = new Map<string, number>();
 
-function acquireRoom(key: string): void {
+/** Shared across every realtime consumer (these hooks AND the comment
+ *  stream): all holds on one socket room must count in ONE ledger, or the
+ *  first module to fully unmount evicts the room from under the others. */
+export function acquireRoom(key: string): void {
   roomRefs.set(key, (roomRefs.get(key) ?? 0) + 1);
 }
 
 /** True when this was the last holder — caller should emit the unsubscribe. */
-function releaseRoom(key: string): boolean {
+export function releaseRoom(key: string): boolean {
   const next = (roomRefs.get(key) ?? 1) - 1;
   if (next <= 0) {
     roomRefs.delete(key);
