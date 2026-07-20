@@ -11,13 +11,19 @@ const API = process.env.NEXT_PUBLIC_API_URL;
 //   PRICE_SCALE  1e8 — 0–1 probability fraction, so 1¢ = 1e6 price units
 // Everything monetary — order cost, the collateral ledger, and
 // getTotalValueByWallet's notional — is tracked in AMOUNT_SCALE dollars, so
-// $1 = 1e8 (⇒ 1¢ = 1e6). getCollateralDollars below already divides by 1e8.
+// $1 = 1e8 (⇒ 1¢ = 1e6).
 const AMOUNT_PER_SHARE = 100_000_000; // 1e8
+const NOTIONAL_PER_DOLLAR = 100_000_000; // 1e8
 const PRICE_PER_CENT = 1_000_000; // 1e6
 const NOTIONAL_PER_CENT = 1_000_000; // 1e6 (1e8 dollars → cents)
 
 const priceToCents = (p: string): number => Math.round(Number(p) / PRICE_PER_CENT);
 const amountToShares = (a: string): number => Math.round(Number(a) / AMOUNT_PER_SHARE);
+
+// Two deliberate output conventions, both fed by the shared fetch helpers below:
+//   • market-scoped reads (terminal) return RAW 1e8 strings — callers render
+//     them with the markets/format helpers;
+//   • profile-table reads return CONVERTED numbers (whole cents / shares).
 
 export type UserIdentity = {
   walletAddress: string;
@@ -93,30 +99,163 @@ export async function getCollateralDollars(
   }
 }
 
+/** A raw position row as the API returns it (amounts are 1e8 strings). */
+type PositionDTO = {
+  marketId: string;
+  outcomeIndex: number;
+  availableAmount: string;
+  lockedAmount: string;
+  averageCost: string | null;
+};
+
 /**
- * Available shares of one outcome (for sell preflight). The positions API is
- * wallet-scoped; filter client-side — fine at this scale. 0 = no position,
- * null = fetch failed (preflight should not block on unknown).
+ * The wallet's open positions. The endpoint is wallet-scoped, so every position
+ * read shares this single fetch and narrows client-side — fine at this scale.
+ * Null = fetch failed (callers must not read that as "no position").
+ */
+async function fetchCurrentPositions(
+  wallet: string,
+): Promise<PositionDTO[] | null> {
+  try {
+    const res = await fetch(
+      `${API}/profiles/${wallet}/current-position?limit=100`,
+    );
+    if (!res.ok) return null;
+    const data = (await res.json()) as { items?: PositionDTO[] };
+    return data.items ?? [];
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Available (unlocked) shares of one outcome, for sell preflight — locked
+ * shares already back a resting ask, so they are not sellable again.
+ * 0 = no position, null = fetch failed (preflight must not block on unknown).
  */
 export async function getPositionShares(
   wallet: string,
   marketId: string,
   outcomeIndex: number,
 ): Promise<number | null> {
+  const items = await fetchCurrentPositions(wallet);
+  if (!items) return null;
+
+  const pos = items.find(
+    (p) => p.marketId === marketId && p.outcomeIndex === outcomeIndex,
+  );
+  return pos ? Number(pos.availableAmount) / AMOUNT_PER_SHARE : 0;
+}
+
+/** One outcome the wallet holds in a market. `shares`/`averageCost` are raw
+ *  1e8 fixed-point strings (reuse markets/format helpers to render). */
+export type UserMarketPosition = {
+  outcomeIndex: number;
+  shares: string;
+  averageCost: string | null;
+};
+
+/** Non-zero holdings for one market, both outcomes. Null = fetch failed. */
+export async function getUserMarketPositions(
+  wallet: string,
+  marketId: string,
+): Promise<UserMarketPosition[] | null> {
+  const items = await fetchCurrentPositions(wallet);
+  if (!items) return null;
+
+  return items
+    .filter((p) => p.marketId === marketId)
+    .map((p) => ({
+      outcomeIndex: p.outcomeIndex,
+      shares: (BigInt(p.availableAmount) + BigInt(p.lockedAmount)).toString(),
+      averageCost: p.averageCost,
+    }))
+    .filter((p) => BigInt(p.shares) > 0n);
+}
+
+/** One resting order the wallet has in a market. Raw 1e8 strings. */
+export type UserMarketOrder = {
+  id: string;
+  outcomeIndex: number;
+  side: "BID" | "ASK";
+  price: string;
+  remaining: string;
+};
+
+/** A raw order row as the API returns it (amounts/prices are 1e8 strings). */
+type OrderDTO = {
+  id: string;
+  marketId: string;
+  outcomeIndex: number;
+  side: "BID" | "ASK";
+  price: string;
+  quantity: string;
+  filledQuantity: string;
+  remainingQuantity: string;
+  market: { title: string };
+  outcome: { label: string };
+};
+
+/**
+ * Every still-working order for the wallet. The endpoint filters by a single
+ * status, so both working statuses are queried server-side and concatenated —
+ * fetching one unfiltered page instead would let a run of filled/cancelled
+ * orders crowd the open ones past the limit and report an empty book.
+ * Null = fetch failed.
+ */
+async function fetchWorkingOrders(wallet: string): Promise<OrderDTO[] | null> {
   try {
-    const res = await fetch(
-      `${API}/profiles/${wallet}/current-position?limit=100`,
+    const pages = await Promise.all(
+      ["OPEN", "PARTIALLY_FILLED"].map((status) =>
+        fetch(`${API}/users/${wallet}/orders?status=${status}&limit=100`).then(
+          (r) =>
+            r.ok
+              ? (r.json() as Promise<{ items?: OrderDTO[] }>)
+              : { items: [] },
+        ),
+      ),
     );
-    if (!res.ok) return null;
-    const data = (await res.json()) as {
-      items?: { marketId: string; outcomeIndex: number; availableAmount: string }[];
-    };
-    const pos = (data.items ?? []).find(
-      (p) => p.marketId === marketId && p.outcomeIndex === outcomeIndex,
-    );
-    return pos ? Number(pos.availableAmount) / 1e8 : 0;
+    return pages.flatMap((p) => p.items ?? []);
   } catch {
     return null;
+  }
+}
+
+/** Open + partially-filled orders the wallet has resting in one market.
+ *  Null = fetch failed. */
+export async function getUserMarketOpenOrders(
+  wallet: string,
+  marketId: string,
+): Promise<UserMarketOrder[] | null> {
+  const orders = await fetchWorkingOrders(wallet);
+  if (!orders) return null;
+
+  return orders
+    .filter((o) => o.marketId === marketId)
+    .map((o) => ({
+      id: o.id,
+      outcomeIndex: o.outcomeIndex,
+      side: o.side,
+      price: o.price,
+      remaining: o.remainingQuantity,
+    }));
+}
+
+/** Cancel a resting order (releases its locked collateral/shares). The wallet
+ *  must own it. Returns true on success. */
+export async function cancelUserOrder(
+  orderId: string,
+  wallet: string,
+): Promise<boolean> {
+  try {
+    const res = await fetch(`${API}/orders/${orderId}`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ walletAddress: wallet }),
+    });
+    return res.ok;
+  } catch {
+    return false;
   }
 }
 
@@ -209,44 +348,21 @@ export async function getMarketsTraded(wallet: string): Promise<number> {
   }
 }
 
-const OPEN_ORDER_STATUSES = new Set(["OPEN", "PARTIALLY_FILLED"]);
-
-type OrderDTO = {
-  id: string;
-  marketId: string;
-  side: "BID" | "ASK";
-  status: string;
-  price: string;
-  quantity: string;
-  filledQuantity: string;
-  market: { title: string };
-  outcome: { label: string };
-};
-
-/**
- * Resting orders. The API filters by a single status, so we pull the page and
- * keep the still-working ones (OPEN + PARTIALLY_FILLED) client-side.
- */
+/** Resting orders across every market, for the profile's Open Orders tab. */
 export async function getOpenOrders(wallet: string): Promise<OpenOrderRow[]> {
-  try {
-    const res = await fetch(`${API}/users/${wallet}/orders?limit=100`);
-    if (!res.ok) return [];
-    const data = (await res.json()) as { items?: OrderDTO[] };
-    return (data.items ?? [])
-      .filter((o) => OPEN_ORDER_STATUSES.has(o.status))
-      .map((o) => ({
-        id: o.id,
-        marketId: o.marketId,
-        market: o.market.title,
-        outcome: o.outcome.label,
-        side: o.side === "BID" ? "BUY" : "SELL",
-        priceCents: priceToCents(o.price),
-        shares: amountToShares(o.quantity),
-        filledShares: amountToShares(o.filledQuantity),
-      }));
-  } catch {
-    return [];
-  }
+  const orders = await fetchWorkingOrders(wallet);
+  if (!orders) return [];
+
+  return orders.map((o) => ({
+    id: o.id,
+    marketId: o.marketId,
+    market: o.market.title,
+    outcome: o.outcome.label,
+    side: o.side === "BID" ? "BUY" : "SELL",
+    priceCents: priceToCents(o.price),
+    shares: amountToShares(o.quantity),
+    filledShares: amountToShares(o.filledQuantity),
+  }));
 }
 
 type TradeDTO = {

@@ -6,6 +6,7 @@ import type {
   FeaturedMarket,
   MarketDTO,
   MarketHoldersResponse,
+  MarketResolution,
   MarketTrade,
   OrderBookData,
   OutcomeDTO,
@@ -41,6 +42,8 @@ function mapMarket(dto: MarketDTO): ApiMarket {
 
     resolutionSource: dto.resolutionSource ?? "",
     conditionId: dto.conditionId,
+    resolverType: dto.resolverType,
+    marketAddress: dto.marketAddress,
     tickSize: dto.tickSize,
     minOrderSize: dto.minOrderSize,
 
@@ -196,16 +199,37 @@ export async function getPriceHistory(
 export async function getMarketTrades(
   marketId: string,
   limit = 30,
+  walletAddress?: string,
 ): Promise<MarketTrade[]> {
   try {
-    const res = await fetch(
-      `${envPath}/trades?marketId=${encodeURIComponent(marketId)}&limit=${limit}`,
-    );
+    let url = `${envPath}/trades?marketId=${encodeURIComponent(marketId)}&limit=${limit}`;
+    if (walletAddress) {
+      url += `&walletAddress=${encodeURIComponent(walletAddress)}`;
+    }
+    const res = await fetch(url);
     if (!res.ok) return [];
     const data = await res.json();
     return (data.items ?? []) as MarketTrade[];
   } catch {
     return [];
+  }
+}
+
+/**
+ * Resolution status + outcome for a market. Degrades to null on any failure
+ * so callers can render a loading/empty state instead of erroring.
+ */
+export async function getMarketResolution(
+  marketId: string,
+): Promise<MarketResolution | null> {
+  try {
+    const res = await fetch(
+      `${envPath}/markets/${encodeURIComponent(marketId)}/resolution`,
+    );
+    if (!res.ok) return null;
+    return (await res.json()) as MarketResolution;
+  } catch {
+    return null;
   }
 }
 
