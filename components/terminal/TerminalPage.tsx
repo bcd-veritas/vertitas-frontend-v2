@@ -1,11 +1,14 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useGSAP } from "@gsap/react";
 import type { ApiMarket, OrderBookData, PricePoint } from "@/lib/markets/types";
 import { binaryYesOutcome, rankedOutcomes } from "@/lib/markets/format";
+import { getOrderBook, getPriceHistory } from "@/lib/markets/data";
+import { useTradeBlips } from "@/lib/markets/useTradeBlips";
+import { useMarketRoom, useTokenRoom } from "@/lib/realtime/hooks";
 import { usePrefersReducedMotion } from "../landing/usePrefersReducedMotion";
 import { Topbar } from "../app/Topbar";
 import { rankRows, colorMap } from "./rank";
@@ -40,10 +43,72 @@ export function TerminalPage({
   });
   const binary = binaryYesOutcome(market.outcomes) != null;
 
+  // Live copies of the server-rendered data; socket dirty-signals refresh
+  // them through the same REST fetchers the server used.
+  const [liveBooks, setLiveBooks] = useState(books);
+  const [liveSeries, setLiveSeries] = useState(series);
+  const [liveStatus, setLiveStatus] = useState(market.status);
+  const [feedNonce, setFeedNonce] = useState(0);
+
+  // Debounced (trailing 250ms): one crossed order produces a burst of
+  // dirty-signals (book + activity + user), and a settlement sweep cancels
+  // many orders at once — collapse each burst into a single refetch so the
+  // middleware's rate limiter isn't chewed through by our own echoes.
+  const booksTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const seriesTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const refetchBooks = useCallback(() => {
+    if (booksTimer.current) clearTimeout(booksTimer.current);
+    booksTimer.current = setTimeout(() => {
+      Promise.all(market.outcomes.map((o) => getOrderBook(o.tokenId))).then(
+        (next) => setLiveBooks(next),
+      );
+    }, 250);
+  }, [market.outcomes]);
+
+  const refetchSeries = useCallback(() => {
+    if (seriesTimer.current) clearTimeout(seriesTimer.current);
+    seriesTimer.current = setTimeout(() => {
+      Promise.all(market.outcomes.map((o) => getPriceHistory(o.tokenId))).then(
+        (next) => setLiveSeries(next),
+      );
+    }, 250);
+  }, [market.outcomes]);
+
+  useEffect(() => {
+    return () => {
+      if (booksTimer.current) clearTimeout(booksTimer.current);
+      if (seriesTimer.current) clearTimeout(seriesTimer.current);
+    };
+  }, []);
+
+  useTokenRoom(market.outcomes[0]?.tokenId ?? null, refetchBooks);
+  useTokenRoom(market.outcomes[1]?.tokenId ?? null, refetchBooks);
+  useMarketRoom(market.id, {
+    onUpdate: (p) => {
+      // kind "book": the token rooms already cover binary markets — only
+      // refetch here for >2-outcome markets whose extra tokens have no room.
+      // kind "activity": trades landed — series/feeds move, books came via
+      // the token signal. No kind: catch-up (mount/reconnect) — refresh all.
+      if (p?.kind === "book") {
+        if (market.outcomes.length > 2) refetchBooks();
+        return;
+      }
+      if (p?.kind !== "activity") refetchBooks();
+      refetchSeries();
+      setFeedNonce((n) => n + 1);
+    },
+    onResolved: () => setLiveStatus("RESOLVED"),
+  });
+
+  // Live fill tape for the chart overlay — feedNonce already ticks on every
+  // activity signal (and catch-up), so blips ride the existing refetch cycle.
+  const blips = useTradeBlips(market.id, market.outcomes, feedNonce);
+
   // One ranking, one palette: hero, chart, tower, and ticket all read from it.
   const rows = useMemo(
-    () => rankRows(market.outcomes, books, series),
-    [market.outcomes, books, series],
+    () => rankRows(market.outcomes, liveBooks, liveSeries),
+    [market.outcomes, liveBooks, liveSeries],
   );
   const colors = useMemo(() => colorMap(rows), [rows]);
 
@@ -119,9 +184,14 @@ export function TerminalPage({
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_380px] gap-x-6 gap-y-8 items-start">
           {/* Main column */}
           <div className="flex flex-col gap-8 min-w-0">
-            <OracleDesk market={market} />
+            <OracleDesk market={{ ...market, status: liveStatus }} />
             <div data-rise>
-              <PriceChart outcomes={market.outcomes} series={series} colors={colors} />
+              <PriceChart
+                outcomes={market.outcomes}
+                series={liveSeries}
+                colors={colors}
+                blips={blips}
+              />
             </div>
             <div data-rise>
               <OutcomesPanel
@@ -135,28 +205,34 @@ export function TerminalPage({
               />
             </div>
             <div data-rise>
-              <MarketComments marketId={market.id} outcomes={market.outcomes} />
+              <MarketComments
+                marketId={market.id}
+                outcomes={market.outcomes}
+                refreshNonce={feedNonce}
+              />
             </div>
             <div data-rise>
               <RelatedMarkets markets={related} />
             </div>
           </div>
 
-          {/* Rail */}
-          <div className="flex flex-col gap-8 lg:sticky lg:top-20">
-            <div data-rise>
-              {market.status === "ACTIVE" ? (
+          {/* Rail. On mobile the wrapper dissolves (`contents`) so the trade
+              ticket can jump above the chart via `order-first`, while rules
+              stay at the bottom; from lg it's the sticky side column again. */}
+          <div className="contents lg:flex lg:flex-col lg:gap-8 lg:sticky lg:top-20">
+            <div data-rise className="order-first lg:order-none">
+              {liveStatus === "ACTIVE" ? (
                 <TradePanel
                   market={market}
                   selection={selection}
-                  books={books}
+                  books={liveBooks}
                   accent={ticketColor}
                   binary={binary}
                   action={action}
                   onActionChange={setAction}
                 />
               ) : (
-                <ResolutionPanel market={market} />
+                <ResolutionPanel market={{ ...market, status: liveStatus }} />
               )}
             </div>
             <div data-rise>

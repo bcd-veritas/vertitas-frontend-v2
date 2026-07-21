@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useAccount, useChainId, useSignTypedData } from "wagmi";
+import { useAccount, useChainId, useSignTypedData, useSwitchChain } from "wagmi";
+import { sepolia } from "wagmi/chains";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import type { ApiMarket, OrderBookData } from "@/lib/markets/types";
 import { oneDp, toCents } from "@/lib/markets/format";
@@ -16,6 +17,7 @@ import {
 import { buildOrderTypedData, type OrderIntent } from "@/lib/orders/eip712";
 import { submitEnabled, submitSignedOrder, OrderRejectedError } from "@/lib/orders/data";
 import { getCollateralDollars, getPositionShares } from "@/lib/profile/data";
+import { useUserRoom } from "@/lib/realtime/hooks";
 import { RollingNumber } from "../profile/RollingNumber";
 import { Frame } from "./Frame";
 import type { TradeSelection } from "./OutcomesPanel";
@@ -85,8 +87,14 @@ export function TradePanel({
   action: Action;
   onActionChange: (a: Action) => void;
 }) {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, chainId: walletChainId } = useAccount();
   const chainId = useChainId();
+  const { switchChain } = useSwitchChain();
+  // useChainId() reports the CONFIG's chain (falls back to sepolia even when
+  // the wallet sits on mainnet), so the guard must read the wallet's actual
+  // chain from useAccount — otherwise signTypedData dies with viem's
+  // "Provided chainId must match the active chainId" instead of a clear CTA.
+  const wrongNetwork = isConnected && walletChainId !== sepolia.id;
   const { signTypedDataAsync } = useSignTypedData();
   const { openConnectModal } = useConnectModal();
 
@@ -125,6 +133,13 @@ export function TradePanel({
   const [collateral, setCollateral] = useState<{ available: number; locked: number } | null>(null);
   const [heldShares, setHeldShares] = useState<number | null>(null);
   const [balanceEpoch, setBalanceEpoch] = useState(0); // bump to refetch after a rejection
+
+  // Preflight numbers (balance + shares held) go stale the moment a fill
+  // lands — including our own buy a second ago. The user room signals every
+  // balance/position change for this wallet, so bump the epoch and let the
+  // existing effects refetch; otherwise "sell 20 shares" fails preflight
+  // with "0 shares" until a manual refresh.
+  useUserRoom(isConnected ? address : null, () => setBalanceEpoch((n) => n + 1));
 
   // Hydration-safe clock: null on first paint (assume live), real after mount.
   // setState deferred into a resolved-promise callback (not called directly
@@ -274,6 +289,9 @@ export function TradePanel({
       resetTimeoutRef.current = setTimeout(() => setPhase("idle"), 2500);
       setAmount("");
       setLimitShares("");
+      // Our own order just moved balance/shares — refresh preflight without
+      // waiting for the socket round-trip (also covers socket-down mode).
+      setBalanceEpoch((n) => n + 1);
     } catch (e) {
       // Backend rejection: check first — OrderRejectedError's fallback
       // message is literally "order rejected (N)", which would otherwise
@@ -573,13 +591,23 @@ export function TradePanel({
       {/* CTA button */}
       <div className="px-5 pt-4">
         <button
-          disabled={!ready && isConnected}
-          onClick={isConnected ? placeOrder : openConnectModal}
-          style={!ready && isConnected ? undefined : { background: flood, color: "var(--color-bg)" }}
+          disabled={isConnected && !wrongNetwork && !ready}
+          onClick={
+            !isConnected
+              ? openConnectModal
+              : wrongNetwork
+                ? () => switchChain({ chainId: sepolia.id })
+                : placeOrder
+          }
+          style={
+            isConnected && !wrongNetwork && !ready
+              ? undefined
+              : { background: flood, color: "var(--color-bg)" }
+          }
           className={`relative overflow-hidden w-full px-4 py-3 font-mono text-[11px] uppercase tracking-[0.14em] transition-colors duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${busy ? "cta-busy" : ""
-            } ${!ready && isConnected ? "bg-fg/10 text-muted" : ""}`}
+            } ${isConnected && !wrongNetwork && !ready ? "bg-fg/10 text-muted" : ""}`}
         >
-          {cta}
+          {wrongNetwork ? "switch wallet to sepolia" : cta}
         </button>
         {isConnected && invalidReason && (
           <p className="pt-2 text-center font-mono text-[11px] uppercase tracking-[0.1em] text-muted/70">
