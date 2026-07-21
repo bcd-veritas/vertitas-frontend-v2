@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000/api/v1";
 const ADMIN_KEY = process.env.ADMIN_API_KEY ?? "";
 
-export async function GET(
+export async function GET( 
   request: NextRequest,
   { params }: { params: Promise<{ path: string[] }> },
 ) {
