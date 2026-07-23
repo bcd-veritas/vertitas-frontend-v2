@@ -3,6 +3,7 @@
 // history, markets traded) against the Fastify profile/order/trade routes.
 
 import type { ActivityRow, OpenOrderRow, PositionRow } from "./mock";
+import type { Role } from "@/lib/admin/types";
 
 const API = process.env.NEXT_PUBLIC_API_URL;
 
@@ -29,7 +30,14 @@ export type UserIdentity = {
   walletAddress: string;
   username: string | null;
   email: string | null;
+  /** Reuses the canonical admin Role union; GET /users/:wallet returns it. */
+  role: Role;
 };
+
+/** Voters/oracle participants take the wallet-VTK deposit path (they need
+ *  wallet VTK to post oracle bonds); everyone else credits the ledger. */
+export const isVoterRole = (role: Role | undefined): boolean =>
+  role === "VOTER" || role === "ORACLE_PARTICIPANT";
 
 /** Null when the user has never saved a profile (404) or the API is down. */
 export async function getUserIdentity(
@@ -61,6 +69,34 @@ export async function ensureAccount(wallet: string): Promise<void> {
   } catch {
     // swallow — onboarding is retried the next time the wallet connects
   }
+}
+
+export type DepositResult = {
+  credited: boolean;
+  alreadyProcessed: boolean;
+  amount: string;
+};
+
+/**
+ * Report a confirmed CollateralVault deposit so the backend verifies the
+ * receipt on-chain and credits the ledger. Only meaningful for the standard
+ * (treasury-receiver) flow; voter deposits skip this. Idempotent server-side
+ * via the tx hash, so a retry after a failed post is safe. Throws with the
+ * API's message so the modal can show a retry.
+ */
+export async function postDeposit(txHash: string): Promise<DepositResult> {
+  const res = await fetch(`${API}/deposits`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ txHash }),
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as {
+      message?: string;
+    } | null;
+    throw new Error(body?.message ?? `HTTP ${res.status}`);
+  }
+  return (await res.json()) as DepositResult;
 }
 
 /** Throws with the API's message (validation, username/email taken). */
@@ -343,6 +379,32 @@ export async function getMarketsTraded(wallet: string): Promise<number> {
     if (!res.ok) return 0;
     const data = (await res.json()) as { totalMarketsTraded: number };
     return data.totalMarketsTraded ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
+/** Lifetime traded notional across all fills, in whole cents (API is a 1e8
+ *  fixed-point string, both sides of each trade counted). 0 on any failure. */
+export async function getVolumeTraded(wallet: string): Promise<number> {
+  try {
+    const res = await fetch(`${API}/profiles/${wallet}/volume`);
+    if (!res.ok) return 0;
+    const data = (await res.json()) as { volume: string };
+    return Math.round(Number(data.volume) / NOTIONAL_PER_CENT);
+  } catch {
+    return 0;
+  }
+}
+
+/** Share of resolved markets the wallet held the winning outcome in, as a
+ *  0–100 percentage (API returns a 0–1 fraction). 0 on any failure. */
+export async function getWinRate(wallet: string): Promise<number> {
+  try {
+    const res = await fetch(`${API}/profiles/${wallet}/win-rate`);
+    if (!res.ok) return 0;
+    const data = (await res.json()) as { winRate: number };
+    return (data.winRate ?? 0) * 100;
   } catch {
     return 0;
   }

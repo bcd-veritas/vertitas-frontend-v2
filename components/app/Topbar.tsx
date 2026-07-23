@@ -9,6 +9,7 @@ import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { GradientAvatar } from "../profile/GradientAvatar";
 import { getCollateralDollars } from "@/lib/profile/data";
 import { useUserRoom } from "@/lib/realtime/hooks";
+import { DepositButton } from "../deposit/DepositButton";
 
 /** Off-chain ledger balances beside the profile pill — available (spendable)
  *  and locked (held by resting orders). These are the DB collateral columns,
@@ -49,7 +50,7 @@ function CollateralReadout() {
     });
 
   return (
-    <div className="hidden sm:flex items-center gap-4 shrink-0">
+    <div className="hidden sm:flex items-center gap-3 shrink-0">
       <span className="flex flex-col items-end gap-0.5 leading-none">
         <MonoLabel className="text-[9px]! tracking-[0.16em]">Available</MonoLabel>
         <span className="font-mono text-xs text-accent tabular-nums">
@@ -62,6 +63,12 @@ function CollateralReadout() {
           ${money(collateral.locked)}
         </span>
       </span>
+      {/* Reuses the same refresh the realtime socket drives, so the readout
+          above updates the moment a deposit is credited. */}
+      <DepositButton
+        onDeposited={refresh}
+        className="pill pill-solid py-1.5! px-3! text-[11px] font-mono uppercase tracking-wider shrink-0 cursor-pointer"
+      />
     </div>
   );
 }
@@ -104,7 +111,7 @@ export function Topbar({
   onSearch?: (v: string) => void;
 }) {
   return (
-    <header className="sticky top-0 z-40 grid grid-cols-[1fr_auto] sm:grid-cols-[1fr_minmax(0,28rem)_1fr] items-center gap-x-4 sm:gap-x-6 px-3 sm:px-4 min-h-14 py-2 sm:py-0 border-b border-line bg-bg/70 backdrop-blur-sm">
+    <header className="sticky top-0 z-40 grid grid-cols-[1fr_auto] sm:grid-cols-[auto_1fr_auto] items-center gap-x-4 sm:gap-x-6 px-3 sm:px-4 min-h-14 py-2 sm:py-0 border-b border-line bg-bg/70 backdrop-blur-sm">
       <Link
         href="/"
         className="justify-self-start font-pixel text-xl tracking-widest text-fg shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 rounded"
@@ -114,7 +121,7 @@ export function Topbar({
 
       {/* Center column — search sits dead-center of the bar */}
       {onSearch ? (
-        <div className="order-last col-span-2 sm:order-0 sm:col-span-1 mt-2 sm:mt-0 flex items-center gap-2 w-full border border-line rounded-lg px-3 py-1.5 focus-within:border-accent/40 transition-colors">
+        <div className="order-last col-span-2 sm:order-0 sm:col-span-1 mt-2 sm:mt-0 flex items-center gap-2 w-full sm:max-w-[28rem] sm:mx-auto border border-line rounded-lg px-3 py-1.5 focus-within:border-accent/40 transition-colors">
           <Search size={13} className="text-muted shrink-0" aria-hidden="true" />
           <input
             value={search ?? ""}
@@ -128,7 +135,7 @@ export function Topbar({
         <div aria-hidden="true" className="hidden sm:block" />
       )}
 
-      <div className="justify-self-end flex items-center gap-4 sm:gap-6">
+      <div className="justify-self-end flex items-center gap-3 sm:gap-4 shrink-0">
         <span className="hidden md:flex items-center gap-2 shrink-0">
           <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" aria-hidden="true" />
           <MonoLabel>markets.online</MonoLabel>

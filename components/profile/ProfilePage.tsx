@@ -14,6 +14,8 @@ import {
   getPortfolioValue,
   getCollateralDollars,
   getMarketsTraded,
+  getVolumeTraded,
+  getWinRate,
   getOpenOrders,
   getTradeHistory,
   type UserIdentity,
@@ -37,11 +39,13 @@ export function ProfilePage({ markets }: { markets: ApiMarket[] }) {
   const [identity, setIdentity] = useState<UserIdentity | null>(null);
   const [editing, setEditing] = useState(false);
 
-  // Live wallet data (real API). PnL time-series, win rate and lifetime volume
-  // have no endpoint yet, so those still come from mockProfile below.
+  // Live wallet data (real API). Only the PnL time-series still has no
+  // endpoint, so that alone comes from mockProfile below.
   const [portfolio, setPortfolio] = useState<PortfolioValue | null>(null);
   const [cashDollars, setCashDollars] = useState<number>(0);
   const [marketsTraded, setMarketsTraded] = useState<number | null>(null);
+  const [volumeTradedCents, setVolumeTradedCents] = useState<number | null>(null);
+  const [winRatePct, setWinRatePct] = useState<number | null>(null);
   const [openOrders, setOpenOrders] = useState<OpenOrderRow[]>([]);
   const [history, setHistory] = useState<ActivityRow[]>([]);
 
@@ -69,13 +73,17 @@ export function ProfilePage({ markets }: { markets: ApiMarket[] }) {
       getPortfolioValue(address),
       getCollateralDollars(address),
       getMarketsTraded(address),
+      getVolumeTraded(address),
+      getWinRate(address),
       getOpenOrders(address),
       getTradeHistory(address),
-    ]).then(([pv, cash, markets, orders, trades]) => {
+    ]).then(([pv, cash, markets, volume, winRate, orders, trades]) => {
       if (!alive) return;
       setPortfolio(pv);
       setCashDollars(cash ? cash.available + cash.locked : 0);
       setMarketsTraded(markets);
+      setVolumeTradedCents(volume);
+      setWinRatePct(winRate);
       setOpenOrders(orders);
       setHistory(trades);
     });
@@ -171,19 +179,19 @@ export function ProfilePage({ markets }: { markets: ApiMarket[] }) {
         </div>
 
         {/* Hero band: headline + outline number over the instance cloud.
-            value + pnl are live; winRate has no endpoint yet (mock). */}
+            value, pnl and winRate are all live. */}
         <HeroValue
           title={displayName}
           valueCents={portfolioValueCents}
           pnlCents={pnlCents}
-          winRatePct={profile.winRatePct}
+          winRatePct={winRatePct ?? 0}
         />
 
-        {/* marketsTraded is live; volume + winRate have no endpoint yet (mock). */}
+        {/* All three blocks are live now. */}
         <MetricBlocks
-          volumeTradedCents={profile.volumeTradedCents}
+          volumeTradedCents={volumeTradedCents ?? 0}
           marketsTraded={marketsTraded ?? 0}
-          winRatePct={profile.winRatePct}
+          winRatePct={winRatePct ?? 0}
         />
 
         {/* PNL — editorial section like the reference's content bands. */}
