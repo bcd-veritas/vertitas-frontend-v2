@@ -1,10 +1,10 @@
 // UMA oracle wiring. Env overrides cover contract redeploys; the fallbacks
 // MUST match veritas-middleware src/infra/blockchain/addresses/contracts.ts.
 export const UMA_ORACLE = (process.env.NEXT_PUBLIC_UMA_ORACLE ??
-  "0x59fb8564df1fef2f4533ad05e4e39b2cd33696e8") as `0x${string}`;
+  "0xb18768781636a8a7b7832e8e94e4bdbb56562d8f") as `0x${string}`;
 
 export const VTK_TOKEN = (process.env.NEXT_PUBLIC_VTK_TOKEN ??
-  "0x0c6722151ecab43db4f6d5ba1f46fd95677a896c") as `0x${string}`;
+  "0xc3b18c10012194907e860b80b9f2d922c49695f4") as `0x${string}`;
 
 /** VTK is 6-decimals on-chain (bond of 500 VTK = 500_000_000n). */
 export const VTK_DECIMALS = 6;
@@ -22,4 +22,4 @@ export const UMA_VOTE_QUIET_MS = process.env.NEXT_PUBLIC_UMA_VOTE_QUIET_MS
  *  gets rejected. Override with NEXT_PUBLIC_UMA_FROM_BLOCK on redeploy. */
 export const UMA_FROM_BLOCK: bigint = process.env.NEXT_PUBLIC_UMA_FROM_BLOCK
   ? BigInt(process.env.NEXT_PUBLIC_UMA_FROM_BLOCK)
-  : 11_237_361n;
+  : 11_312_730n;

@@ -55,7 +55,6 @@ function rejectionMessage(e: OrderRejectedError): string {
     case "BELOW_MIN_SIZE":
       return "order below the minimum size";
     case "ORDER_EXPIRED":
-    case "STALE_NONCE":
     case "DUPLICATE_ORDER":
       return "order went stale — try again";
     case "INVALID_SIGNATURE":
