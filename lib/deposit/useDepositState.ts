@@ -3,7 +3,7 @@
 import { useAccount, useReadContract } from "wagmi";
 import { erc20Abi } from "@/lib/uma/abi";
 import { VTK_TOKEN } from "@/lib/uma/config";
-import { COLLATERAL_VAULT, USDCC_TOKEN } from "./config";
+import { COLLATERAL_VAULT, EXCHANGE_CONTRACT, USDCC_TOKEN } from "./config";
 
 export type DepositState = {
   /** Wallet USDCC balance (6-dec base units) — the max depositable. */
@@ -12,7 +12,10 @@ export type DepositState = {
   allowance: bigint | null;
   /** Wallet VTK balance (6-dec) — the voter-flow readout. */
   vtkBalance: bigint | null;
-  /** Re-read balances + allowance after a tx confirms. */
+  /** VTK allowance granted to the Exchange — drives the "enable trading" step
+   *  (settlement COLLECTs a user's VTK). */
+  vtkAllowanceToExchange: bigint | null;
+  /** Re-read balances + allowances after a tx confirms. */
   refetch: () => void;
 };
 
@@ -46,14 +49,25 @@ export function useDepositState(): DepositState {
     query: { enabled },
   });
 
+  const vtkAllowanceToExchange = useReadContract({
+    address: VTK_TOKEN,
+    abi: erc20Abi,
+    functionName: "allowance",
+    args: owner ? [owner, EXCHANGE_CONTRACT] : undefined,
+    query: { enabled },
+  });
+
   return {
     usdccBalance: (usdccBalance.data as bigint | undefined) ?? null,
     allowance: (allowance.data as bigint | undefined) ?? null,
     vtkBalance: (vtkBalance.data as bigint | undefined) ?? null,
+    vtkAllowanceToExchange:
+      (vtkAllowanceToExchange.data as bigint | undefined) ?? null,
     refetch: () => {
       usdccBalance.refetch();
       allowance.refetch();
       vtkBalance.refetch();
+      vtkAllowanceToExchange.refetch();
     },
   };
 }

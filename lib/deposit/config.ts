@@ -27,3 +27,9 @@ export const COLLATERAL_VAULT = required(
 
 /** USDCC and VTK are both 6-decimals on-chain, and the vault swaps them 1:1. */
 export const USDCC_DECIMALS = 6;
+
+/** Settlement contract — the spender for the VTK approval that lets the Exchange
+ *  COLLECT a user's collateral at settlement (Exchange.settleLegs COLLECT branch).
+ *  Fallback MUST match the middleware's EXCHANGE_CONTRACT / contracts.ts exchange. */
+export const EXCHANGE_CONTRACT = (process.env.NEXT_PUBLIC_EXCHANGE_CONTRACT ??
+  "0x21804b23262079333be33c89118146467741ed59") as `0x${string}`;

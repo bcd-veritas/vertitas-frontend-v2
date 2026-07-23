@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
-import { formatUnits, parseUnits } from "viem";
+import { formatUnits, maxUint256, parseUnits } from "viem";
 import { useAccount, useWriteContract } from "wagmi";
 
 import { erc20Abi } from "@/lib/uma/abi";
@@ -185,17 +185,18 @@ export function DepositModal({
               )}
             </div>
 
-            {/* One action at a time: approve while allowance is short, else deposit. */}
+            {/* One action at a time: approve while allowance is short, else deposit.
+                A one-time (max) approval so the user never re-approves USDCC. */}
             {needsApproval ? (
               <TxButton
-                label={`approve ${amountBase != null ? fmt(amountBase) : ""} usdcc`}
+                label="approve usdcc (one-time)"
                 disabled={!canAct}
                 send={() =>
                   writeContractAsync({
                     address: USDCC_TOKEN,
                     abi: erc20Abi,
                     functionName: "approve",
-                    args: [COLLATERAL_VAULT, amountBase!],
+                    args: [COLLATERAL_VAULT, maxUint256],
                   })
                 }
                 onConfirmed={() => deposit.refetch()}

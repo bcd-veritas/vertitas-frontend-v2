@@ -10,6 +10,7 @@ import { GradientAvatar } from "../profile/GradientAvatar";
 import { getCollateralDollars } from "@/lib/profile/data";
 import { useUserRoom } from "@/lib/realtime/hooks";
 import { DepositButton } from "../deposit/DepositButton";
+import { EnableTradingButton } from "../deposit/EnableTradingButton";
 
 /** Off-chain ledger balances beside the profile pill — available (spendable)
  *  and locked (held by resting orders). These are the DB collateral columns,
@@ -63,6 +64,8 @@ function CollateralReadout() {
           ${money(collateral.locked)}
         </span>
       </span>
+      {/* One-time VTK→Exchange approval; self-hides once granted. */}
+      <EnableTradingButton />
       {/* Reuses the same refresh the realtime socket drives, so the readout
           above updates the moment a deposit is credited. */}
       <DepositButton
