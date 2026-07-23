@@ -21,7 +21,9 @@ export function TxButton({
   label: string;
   /** Fire the tx (wagmi writeContractAsync) and return its hash. */
   send: () => Promise<`0x${string}`>;
-  onConfirmed?: () => void;
+  /** Fires after the receipt confirms, with the tx hash — so callers can
+   *  sync the confirmed tx to the backend, not just refetch. */
+  onConfirmed?: (hash: `0x${string}`) => void;
   disabled?: boolean;
   tone?: string;
   /** "filled" = the highlighted, clearly-clickable action (default);
@@ -53,7 +55,7 @@ export function TxButton({
         throw new Error("transaction reverted on-chain");
       }
       setPhase("done");
-      onConfirmed?.();
+      onConfirmed?.(h);
     } catch (e) {
       setError(friendlyTxError(e));
       setPhase("error");

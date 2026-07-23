@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useAccount, useWriteContract } from "wagmi";
+import { syncBondStake } from "@/lib/markets/data";
 import type { ApiMarket } from "@/lib/markets/types";
 import { umaOracleAbi, erc20Abi } from "@/lib/uma/abi";
 import { UMA_ORACLE, VTK_TOKEN } from "@/lib/uma/config";
@@ -171,7 +172,18 @@ export function BondForm({
               args: [marketId, BigInt(outcomeIndex ?? 0), bond],
             })
           }
-          onConfirmed={uma.refetch}
+          onConfirmed={(hash) => {
+            // Wallet VTK just left for the oracle — mirror the debit into
+            // the DB ledger (Topbar refreshes itself via the userChanged
+            // socket event the sync emits). Best-effort: the chain is the
+            // truth either way, so a failed sync only logs.
+            if (address) {
+              syncBondStake(market.id, address, hash).catch((e) => {
+                console.warn("bond ledger sync failed", e);
+              });
+            }
+            uma.refetch();
+          }}
         />
       )}
     </div>

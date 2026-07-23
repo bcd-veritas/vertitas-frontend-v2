@@ -5,6 +5,8 @@ import { Check, Loader2 } from "lucide-react";
 import { useAccount } from "wagmi";
 import type { ApiMarket, MarketResolution, MarketTrade } from "@/lib/markets/types";
 import { getMarketResolution, getMarketTrades } from "@/lib/markets/data";
+import { getUserMarketPositions, type UserMarketPosition } from "@/lib/profile/data";
+import { ClaimPanel } from "./ClaimPanel";
 import { Frame } from "./Frame";
 
 /** Net winning-outcome shares from the wallet's trades — positions are
@@ -36,6 +38,13 @@ export function ResolutionPanel({ market }: { market: ApiMarket }) {
   const { address } = useAccount();
   const [data, setData] = useState<MarketResolution | null>(null);
   const [won, setWon] = useState<number | null>(null);
+  const [positions, setPositions] = useState<UserMarketPosition[] | null>(null);
+  // Bumped by ClaimPanel's onClaimed so the positions refetch drops the row
+  // the middleware just zeroed (per-claim-sync), making the button disappear.
+  const [positionsEpoch, setPositionsEpoch] = useState(0);
+  // Sticky across that refetch — without it, the position hitting zero would
+  // unmount ClaimPanel mid-flight and swallow its own "claimed" success state.
+  const [justClaimed, setJustClaimed] = useState(false);
 
   // Poll while pending; harmless once RESOLVED (payload stops changing).
   useEffect(() => {
@@ -71,6 +80,35 @@ export function ResolutionPanel({ market }: { market: ApiMarket }) {
       alive = false;
     };
   }, [market.id, address, winning]);
+
+  // Positions are the settlement TRUTH for whether the claim is still
+  // outstanding (trades survive settlement; a claimed position is zeroed).
+  useEffect(() => {
+    let alive = true;
+    if (winning == null || !address) {
+      Promise.resolve().then(() => alive && setPositions(null));
+      return () => {
+        alive = false;
+      };
+    }
+    getUserMarketPositions(address, market.id).then((p) => {
+      if (!alive) return;
+      setPositions(p);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [market.id, address, winning, positionsEpoch]);
+
+  const winningPosition =
+    winning != null && positions
+      ? (positions.find((p) => p.outcomeIndex === winning) ?? null)
+      : null;
+  const unclaimedShares = winningPosition
+    ? Number(winningPosition.shares) / 1e8
+    : 0;
+  const hasUnclaimed =
+    winningPosition != null && BigInt(winningPosition.shares) > 0n;
 
   if (market.status === "ACTIVE") return null;
 
@@ -168,6 +206,19 @@ export function ResolutionPanel({ market }: { market: ApiMarket }) {
               credited to your balance
             </p>
           </div>
+        )}
+
+        {(hasUnclaimed || justClaimed) && (
+          <ClaimPanel
+            marketId={market.id}
+            marketAddress={market.marketAddress}
+            winningLabel={label}
+            shares={unclaimedShares}
+            onClaimed={() => {
+              setJustClaimed(true);
+              setPositionsEpoch((n) => n + 1);
+            }}
+          />
         )}
       </div>
     </Frame>

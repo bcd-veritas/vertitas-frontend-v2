@@ -51,19 +51,37 @@ function mapMarket(dto: MarketDTO): ApiMarket {
   };
 }
 
+/** Server pages at max 100/request (default 20) — fetch page 1, then any
+ *  remaining pages in parallel so /home shows EVERY market, not the first 20. */
+const MARKETS_PAGE = 100;
+
 export async function getMarkets(category?: string): Promise<ApiMarket[]> {
-  const url =
+  const base =
     category && category !== "All"
       ? `${envPath}/markets?category=${encodeURIComponent(category)}&withPrices=true`
       : `${envPath}/markets?withPrices=true`;
-  const res = await fetch(url);
+  const res = await fetch(`${base}&limit=${MARKETS_PAGE}`);
 
   if (!res.ok) {
     throw new Error("Failed to fetch markets");
   }
 
   const data = await res.json();
-  const markets: MarketDTO[] = data.items;
+  const markets: MarketDTO[] = [...(data.items ?? [])];
+  const totalPages: number = data.totalPages ?? 1;
+
+  if (totalPages > 1) {
+    const rest = await Promise.all(
+      Array.from({ length: totalPages - 1 }, (_, i) =>
+        fetch(`${base}&limit=${MARKETS_PAGE}&page=${i + 2}`)
+          .then((r) => (r.ok ? r.json() : { items: [] }))
+          .then((d) => (d.items ?? []) as MarketDTO[])
+          .catch(() => [] as MarketDTO[]),
+      ),
+    );
+    for (const pageItems of rest) markets.push(...pageItems);
+  }
+
   return markets.map(mapMarket);
 }
 
@@ -320,6 +338,84 @@ export async function getMarketResolution(
   } catch {
     return null;
   }
+}
+
+export type ClaimSyncResult = { credited: string };
+
+/** A rejected claim-sync, with the backend's stable error code
+ *  (CLAIM_TX_FAILED | CLAIM_NOT_FOUND | ALREADY_CLAIMED). */
+export class ClaimError extends Error {
+  constructor(
+    message: string,
+    public readonly code?: string,
+  ) {
+    super(message);
+    this.name = "ClaimError";
+  }
+}
+
+/**
+ * POST /markets/:marketId/claim — reconciles an on-chain redeemPositions()
+ * receipt with the app ledger. Call only once the wallet's tx receipt shows
+ * status "success"; the backend re-derives the winnings from on-chain state
+ * and returns the 1e8 fixed-point amount it credited.
+ */
+export async function syncClaim(
+  marketId: string,
+  walletAddress: string,
+  txHash: string,
+): Promise<ClaimSyncResult> {
+  const res = await fetch(
+    `${envPath}/markets/${encodeURIComponent(marketId)}/claim`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ walletAddress, txHash }),
+    },
+  );
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as {
+      code?: string;
+      message?: string;
+    } | null;
+    throw new ClaimError(
+      body?.message ?? `claim sync failed (${res.status})`,
+      body?.code,
+    );
+  }
+  return (await res.json()) as ClaimSyncResult;
+}
+
+/**
+ * POST /markets/:marketId/bond — mirrors a confirmed on-chain UMA bond post
+ * (assertOutcome/disputeOutcome) into the DB collateral ledger. The wallet
+ * already spent the VTK; the backend verifies the receipt and debits the DB
+ * to match. Fire after the tx receipt shows success.
+ */
+export async function syncBondStake(
+  marketId: string,
+  walletAddress: string,
+  txHash: string,
+): Promise<{ debited: string }> {
+  const res = await fetch(
+    `${envPath}/markets/${encodeURIComponent(marketId)}/bond`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ walletAddress, txHash }),
+    },
+  );
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as {
+      code?: string;
+      message?: string;
+    } | null;
+    throw new ClaimError(
+      body?.message ?? `bond sync failed (${res.status})`,
+      body?.code,
+    );
+  }
+  return (await res.json()) as { debited: string };
 }
 
 export async function getTopHolders(
