@@ -82,9 +82,9 @@ export function DepositModal({
   const amountBase = parseAmount(amount);
   const balance = deposit.usdccBalance;
   const allowance = deposit.allowance;
-  // Standard flow: VTK minted to the vault (protocol custody, ledger credited).
-  // Voter flow: VTK minted to their own wallet.
-  const receiver = (isVoter ? address : COLLATERAL_VAULT) as `0x${string}`;
+  // New model: VTK is minted to the user's OWN wallet for everyone (self-custody).
+  // The backend then mirrors the ledger's available balance to the wallet's VTK.
+  const receiver = address as `0x${string}`;
 
   const insufficient =
     amountBase != null && balance != null && amountBase > balance;
@@ -92,15 +92,11 @@ export function DepositModal({
     amountBase != null && allowance != null && amountBase > allowance;
   const canAct = amountBase != null && !insufficient && !!address;
 
-  // Standard flow only: after the on-chain deposit confirms, report the hash so
-  // the backend credits the ledger. The tx already succeeded and the call is
+  // After the on-chain deposit confirms, report the hash so the backend syncs the
+  // ledger's available balance to the wallet's on-chain VTK. Every user posts now
+  // (VTK is always self-custodied). The tx already succeeded and the call is
   // idempotent, so a failure here is a sync hiccup, never lost funds.
   async function syncCredit() {
-    if (isVoter) {
-      onDeposited();
-      onClose();
-      return;
-    }
     const hash = lastHash.current;
     if (!hash) return;
     setSyncing(true);
@@ -150,6 +146,22 @@ export function DepositModal({
                 ? "Deposit USDCC to receive VTK in your wallet — used to post oracle bonds."
                 : "Deposit USDCC to fund your available balance for trading."}
             </p>
+
+            <div>
+              <label htmlFor="deposit-token" className="block mb-2">
+                <MonoLabel>token</MonoLabel>
+              </label>
+              {/* USDCC is the only depositable token; the select is locked to it. */}
+              <select
+                id="deposit-token"
+                value="USDCC"
+                disabled
+                aria-label="Deposit token"
+                className="w-full appearance-none bg-fg/3 text-fg text-sm px-3 py-2.5 border border-line font-mono tracking-wide disabled:cursor-not-allowed disabled:opacity-90 bg-[url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2212%22 height=%2212%22 fill=%22none%22 stroke=%22%238a8078%22 stroke-width=%222%22><path d=%22M2 4l4 4 4-4%22/></svg>')] bg-[right_0.9rem_center] bg-no-repeat"
+              >
+                <option value="USDCC">USDCC</option>
+              </select>
+            </div>
 
             <div>
               <label htmlFor="deposit-amount" className="block mb-2">
