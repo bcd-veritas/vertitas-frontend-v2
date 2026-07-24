@@ -6,7 +6,7 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useGSAP } from "@gsap/react";
 import type { ApiMarket, OrderBookData, PricePoint } from "@/lib/markets/types";
 import { binaryYesOutcome, rankedOutcomes } from "@/lib/markets/format";
-import { getOrderBook, getPriceHistory } from "@/lib/markets/data";
+import { getOrderBook, getPriceHistory, getProbabilityHistory } from "@/lib/markets/data";
 import { useTradeBlips } from "@/lib/markets/useTradeBlips";
 import { useMarketRoom, useTokenRoom } from "@/lib/realtime/hooks";
 import { usePrefersReducedMotion } from "../landing/usePrefersReducedMotion";
@@ -47,6 +47,10 @@ export function TerminalPage({
   // them through the same REST fetchers the server used.
   const [liveBooks, setLiveBooks] = useState(books);
   const [liveSeries, setLiveSeries] = useState(series);
+  // The main chart plots the probability MARK over time (getProbabilityHistory),
+  // NOT raw trades — that's what makes it agree with the headline. Trade history
+  // stays on `liveSeries`, which still feeds the outcome tab's per-row graphs.
+  const [probSeries, setProbSeries] = useState<PricePoint[][]>([]);
   const [liveStatus, setLiveStatus] = useState(market.status);
   const [feedNonce, setFeedNonce] = useState(0);
 
@@ -72,8 +76,23 @@ export function TerminalPage({
       Promise.all(market.outcomes.map((o) => getPriceHistory(o.tokenId))).then(
         (next) => setLiveSeries(next),
       );
+      getProbabilityHistory(market.id, market.outcomes).then((next) =>
+        setProbSeries(next),
+      );
     }, 250);
-  }, [market.outcomes]);
+  }, [market.id, market.outcomes]);
+
+  // Initial probability-mark fetch (the trade `series` is server-rendered, but
+  // the mark history is client-fetched so page.tsx stays untouched).
+  useEffect(() => {
+    let alive = true;
+    getProbabilityHistory(market.id, market.outcomes).then((next) => {
+      if (alive) setProbSeries(next);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [market.id, market.outcomes]);
 
   useEffect(() => {
     return () => {
@@ -111,6 +130,17 @@ export function TerminalPage({
     [market.outcomes, liveBooks, liveSeries],
   );
   const colors = useMemo(() => colorMap(rows), [rows]);
+
+  // The main chart plots probability marks. For a binary market YES and NO are
+  // exact mirrors (sum to 100%), so a second line is redundant — show only YES.
+  // Multi-outcome markets keep every outcome's line (PriceChart ranks top-4).
+  const chartSeries = useMemo(() => {
+    if (!binary) return probSeries;
+    const yes = binaryYesOutcome(market.outcomes);
+    return market.outcomes.map((o, i) =>
+      yes && o.id === yes.id ? probSeries[i] ?? [] : [],
+    );
+  }, [binary, probSeries, market.outcomes]);
 
   // Expanded tower row — while open, the whole page focuses on it: the hero
   // readout rolls to its chance, and the waves + ticket retint to its color.
@@ -188,7 +218,7 @@ export function TerminalPage({
             <div data-rise>
               <PriceChart
                 outcomes={market.outcomes}
-                series={liveSeries}
+                series={chartSeries}
                 colors={colors}
                 blips={blips}
               />

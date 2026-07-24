@@ -303,6 +303,48 @@ export async function getPriceHistory(
   }
 }
 
+/**
+ * The recorded probability MARK over time, per outcome — the source for the
+ * market-detail "chance over time" chart. Distinct from getPriceHistory (raw
+ * per-token trade prices, used by the outcome tab). The backend appends the
+ * live "now" mark so the latest point matches the headline. Returned aligned
+ * to `outcomes` array order (each outcome matched to its `.index`), so it drops
+ * straight into PriceChart's `series` prop.
+ */
+export async function getProbabilityHistory(
+  marketId: string,
+  outcomes: { index: number }[],
+  points = 200,
+): Promise<PricePoint[][]> {
+  try {
+    const res = await fetch(
+      `${envPath}/markets/${encodeURIComponent(marketId)}/probability-history?points=${points}`,
+    );
+    if (!res.ok) return outcomes.map(() => []);
+    // bucketSeries serializes each point as { t, price } (not createdAt).
+    const data = (await res.json()) as {
+      series?: {
+        outcomeIndex: number;
+        points: { t: string; price: string }[];
+      }[];
+    };
+    const series = data.series ?? [];
+    return outcomes.map((o) => {
+      const s = series.find((x) => x.outcomeIndex === o.index);
+      return (s?.points ?? []).map(
+        (p, i): PricePoint => ({
+          id: `${marketId}:${o.index}:${i}`,
+          price: p.price,
+          quantity: "0",
+          createdAt: p.t,
+        }),
+      );
+    });
+  } catch {
+    return outcomes.map(() => []);
+  }
+}
+
 export async function getMarketTrades(
   marketId: string,
   limit = 30,

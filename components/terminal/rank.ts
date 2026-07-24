@@ -80,8 +80,18 @@ export function rankRows(
       bestAsk != null && impliedAsk != null
         ? Math.min(bestAsk, impliedAsk)
         : bestAsk ?? impliedAsk;
+    // Crossed effective book (effBid > effAsk) is impossible on a healthy
+    // engine — it only happens on thin/stale/one-sided books (e.g. a seeded
+    // market with asks but no bids, where the mirrored implied bid overshoots
+    // the real ask). Its midpoint is nonsense, so fall back to last trade —
+    // IDENTICAL to the backend priceFor guard, so the headline and the
+    // recorded-mark chart always agree.
     const pct =
-      effBid != null && effAsk != null ? (effBid + effAsk) / 2 : lastTrade;
+      effBid != null && effAsk != null
+        ? effBid > effAsk
+          ? lastTrade ?? (effBid + effAsk) / 2
+          : (effBid + effAsk) / 2
+        : lastTrade;
 
     return {
       outcome,
