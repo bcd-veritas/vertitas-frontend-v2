@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   useAccount,
+  usePublicClient,
   useSwitchChain,
   useWaitForTransactionReceipt,
   useWriteContract,
@@ -47,12 +48,16 @@ export function ClaimPanel({
   marketId,
   marketAddress,
   winningLabel,
+  winningOutcomeIndex,
   shares,
   onClaimed,
 }: {
   marketId: string;
   marketAddress: string | null;
   winningLabel: string;
+  /** Winning outcome index — used to read the wallet's on-chain CTF balance so
+   *  the button only opens once settlement has delivered the tokens. */
+  winningOutcomeIndex: number;
   /** Unclaimed shares on the winning outcome — $1/share. */
   shares: number;
   /** Fires once claim-sync succeeds, so the parent can refetch positions. */
@@ -61,6 +66,7 @@ export function ClaimPanel({
   const { address, chainId: walletChainId, isConnected } = useAccount();
   const { switchChain } = useSwitchChain();
   const { writeContractAsync } = useWriteContract();
+  const publicClient = usePublicClient();
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState<string | null>(null);
   const [hash, setHash] = useState<`0x${string}` | undefined>(undefined);
@@ -72,7 +78,58 @@ export function ClaimPanel({
   const wrongNetwork = isConnected && walletChainId !== sepolia.id;
   const tone = toneForLabel(winningLabel);
 
-  const { data: receipt } = useWaitForTransactionReceipt({ hash });
+  // On-chain delivery gate: true once settlement has moved the winning CTF into
+  // this wallet (getOutcomeBalance > 0). null = still checking. The claim button
+  // stays a "settling…" state until this is true, so a wallet can never fire a
+  // redeem before its tokens exist (the resolve→settle window). Polls until
+  // delivered or the claim is done.
+  const [delivered, setDelivered] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (!publicClient || !marketAddress || !address) return;
+    if (phase === "done" || delivered === true) return;
+    let alive = true;
+    const read = async () => {
+      try {
+        const bal = (await publicClient.readContract({
+          address: marketAddress as `0x${string}`,
+          abi: marketAbi,
+          functionName: "getOutcomeBalance",
+          args: [address, BigInt(winningOutcomeIndex)],
+        })) as bigint;
+        if (alive) setDelivered(bal > 0n);
+      } catch {
+        // Read failed (RPC hiccup): leave the gate as-is. The claim path's own
+        // pre-estimate is the fallback that still blocks a doomed redeem.
+      }
+    };
+    read();
+    const t = setInterval(read, 10_000);
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+  }, [publicClient, marketAddress, address, winningOutcomeIndex, phase, delivered]);
+
+  // `timeout` guarantees the wait resolves (or errors) instead of polling
+  // forever if the RPC never surfaces the receipt — otherwise the button can
+  // hang on "confirming" indefinitely.
+  const { data: receipt, error: receiptError } = useWaitForTransactionReceipt({
+    hash,
+    timeout: 90_000,
+  });
+
+  // Receipt never came (timeout / RPC failure): surface an error and reset so
+  // the user can retry, rather than sitting on "confirming".
+  useEffect(() => {
+    if (!receiptError || !hash) return;
+    if (syncedHashRef.current === hash) return;
+    syncedHashRef.current = hash;
+    Promise.resolve().then(() => {
+      setError("couldn’t confirm the transaction — refresh and try again");
+      setPhase("error");
+    });
+  }, [receiptError, hash]);
 
   useEffect(() => {
     if (!receipt || !hash || !address) return;
@@ -115,17 +172,36 @@ export function ClaimPanel({
     setError(null);
     setPhase("wallet");
     try {
+      // Estimate gas against the APP's RPC (not the wallet's). Two wins:
+      //  1. Passing a real gas number stops MetaMask from falling back to the
+      //     block limit (~21M) on its Infura endpoint, which Infura rejects at
+      //     broadcast ("gas limit too high (cap: 16777216)").
+      //  2. If the redeem WOULD revert — e.g. settlement hasn't delivered the
+      //     winning CTF yet (the resolve→settle window) — this throws HERE, so
+      //     we fail fast with a clear message instead of submitting a doomed tx
+      //     that reverts and leaves the button stuck on "confirming".
+      let gas: bigint;
+      try {
+        const estimate = await publicClient!.estimateContractGas({
+          address: marketAddress as `0x${string}`,
+          abi: marketAbi,
+          functionName: "redeemPositions",
+          account: address,
+        });
+        gas = (estimate * 125n) / 100n; // 25% headroom
+      } catch {
+        setError(
+          "not claimable yet — winnings are still settling on-chain, try again in a minute",
+        );
+        setPhase("error");
+        return;
+      }
+
       const h = await writeContractAsync({
         address: marketAddress as `0x${string}`,
         abi: marketAbi,
         functionName: "redeemPositions",
-        // Explicit gas limit. redeemPositions is a fixed-cost op (~79k gas: one
-        // burn + one transfer, independent of position size). Without this, some
-        // wallet/RPC combos (MetaMask on an Infura Sepolia endpoint) fail to
-        // estimate and fall back to the block gas limit (~21M), which Infura
-        // then rejects at broadcast — "gas limit too high (cap: 16777216)". A
-        // fixed 300k ceiling has ample headroom and stays far under the cap.
-        gas: 300_000n,
+        gas,
       });
       setHash(h);
       setPhase("confirming");
@@ -171,6 +247,17 @@ export function ClaimPanel({
         <p className="mt-2 font-mono text-[11px] uppercase tracking-[0.1em] text-no">
           claim unavailable — market has no on-chain address
         </p>
+      ) : delivered !== true && !busy ? (
+        // Winning tokens haven't landed in the wallet yet (settlement still
+        // running, or first on-chain read pending). Show a passive "settling"
+        // state — NOT a clickable claim — so no redeem can fire before the CTF
+        // exists. Flips to the button automatically when the poll sees > 0.
+        <div className="mt-3 flex items-center gap-2">
+          <span className="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-muted/40 border-t-transparent" />
+          <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted">
+            settling on-chain — claim opens shortly…
+          </p>
+        </div>
       ) : (
         <button
           type="button"

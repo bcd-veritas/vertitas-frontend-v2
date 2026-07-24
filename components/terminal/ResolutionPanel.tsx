@@ -208,11 +208,12 @@ export function ResolutionPanel({ market }: { market: ApiMarket }) {
           </div>
         )}
 
-        {(hasUnclaimed || justClaimed) && (
+        {(hasUnclaimed || justClaimed) && winning != null && (
           <ClaimPanel
             marketId={market.id}
             marketAddress={market.marketAddress}
             winningLabel={label}
+            winningOutcomeIndex={winning}
             shares={unclaimedShares}
             onClaimed={() => {
               setJustClaimed(true);

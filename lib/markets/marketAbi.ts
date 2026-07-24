@@ -11,6 +11,19 @@ export const marketAbi = [
     outputs: [],
   },
   {
+    // The caller's on-chain CTF balance for one outcome. The claim UI reads
+    // this to know when settlement has actually DELIVERED the winning tokens
+    // to the wallet — the button only opens once this is > 0.
+    type: "function",
+    name: "getOutcomeBalance",
+    stateMutability: "view",
+    inputs: [
+      { name: "_account", type: "address" },
+      { name: "_outcomeIndex", type: "uint256" },
+    ],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
     // Deployed v4 shape (4 args) — matches the on-chain event the middleware
     // decodes during claim-sync; the contracts-repo source is outdated here.
     type: "event",
