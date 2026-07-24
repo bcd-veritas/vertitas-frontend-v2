@@ -119,6 +119,13 @@ export function ClaimPanel({
         address: marketAddress as `0x${string}`,
         abi: marketAbi,
         functionName: "redeemPositions",
+        // Explicit gas limit. redeemPositions is a fixed-cost op (~79k gas: one
+        // burn + one transfer, independent of position size). Without this, some
+        // wallet/RPC combos (MetaMask on an Infura Sepolia endpoint) fail to
+        // estimate and fall back to the block gas limit (~21M), which Infura
+        // then rejects at broadcast — "gas limit too high (cap: 16777216)". A
+        // fixed 300k ceiling has ample headroom and stays far under the cap.
+        gas: 300_000n,
       });
       setHash(h);
       setPhase("confirming");
