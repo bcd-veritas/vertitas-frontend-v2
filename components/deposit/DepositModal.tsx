@@ -148,6 +148,22 @@ export function DepositModal({
             </p>
 
             <div>
+              <label htmlFor="deposit-token" className="block mb-2">
+                <MonoLabel>token</MonoLabel>
+              </label>
+              {/* USDCC is the only depositable token; the select is locked to it. */}
+              <select
+                id="deposit-token"
+                value="USDCC"
+                disabled
+                aria-label="Deposit token"
+                className="w-full appearance-none bg-fg/3 text-fg text-sm px-3 py-2.5 border border-line font-mono tracking-wide disabled:cursor-not-allowed disabled:opacity-90 bg-[url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2212%22 height=%2212%22 fill=%22none%22 stroke=%22%238a8078%22 stroke-width=%222%22><path d=%22M2 4l4 4 4-4%22/></svg>')] bg-[right_0.9rem_center] bg-no-repeat"
+              >
+                <option value="USDCC">USDCC</option>
+              </select>
+            </div>
+
+            <div>
               <label htmlFor="deposit-amount" className="block mb-2">
                 <MonoLabel>amount // usdcc</MonoLabel>
               </label>

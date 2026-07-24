@@ -131,9 +131,10 @@ export type EnableTradingResult = {
  * Throws with the API's message so the wizard can show it.
  */
 export async function enableTrading(wallet: string): Promise<EnableTradingResult> {
+  // No body — the wallet comes from the URL. Sending a JSON content-type with an
+  // empty body makes Fastify reject it ("Body cannot be empty …"), so omit it.
   const res = await fetch(`${API}/users/${wallet}/enable-trading`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
   });
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as {

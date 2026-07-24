@@ -7,7 +7,7 @@ import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-quer
 import { wagmiConfig } from "@/lib/wagmi/config";
 import { ensureAccount, getUserIdentity } from "@/lib/profile/data";
 import { useDepositState } from "@/lib/deposit/useDepositState";
-import { OnboardingWizard } from "@/components/onboarding/OnboardingWizard";
+import { OnboardingFlow } from "@/components/onboarding/OnboardingFlow";
 import "@rainbow-me/rainbowkit/styles.css";
 
 const queryClient = new QueryClient();
@@ -28,7 +28,7 @@ function AccountSync() {
  */
 function OnboardingGate() {
   const { address, isConnected } = useAccount();
-  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(false);
   const [dismissed, setDismissed] = useState(false);
   const { vtkAllowanceToExchange } = useDepositState();
 
@@ -43,18 +43,19 @@ function OnboardingGate() {
   useEffect(() => {
     if (!isConnected || !address || dismissed) return;
     if (vtkAllowanceToExchange == null) return; // still loading on-chain reads
-    if (!onboarded) setOpen(true);
+    if (!onboarded) setActive(true);
   }, [isConnected, address, dismissed, onboarded, vtkAllowanceToExchange]);
 
   if (!isConnected || !address) return null;
 
   return (
-    <OnboardingWizard
-      open={open}
-      onClose={() => {
-        setOpen(false);
+    <OnboardingFlow
+      active={active}
+      onDismiss={() => {
+        setActive(false);
         setDismissed(true);
       }}
+      address={address}
       identity={identity ?? null}
     />
   );
