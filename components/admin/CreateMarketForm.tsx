@@ -197,11 +197,188 @@ function validate(f: FormState): Record<string, string> {
   return e;
 }
 
+/** Mirrors the backend's CREATE_MARKET_STEPS (admin.model.ts) in the exact
+ *  order the server emits them over SSE. */
+const CREATE_STEPS = [
+  { id: "onchain-create", label: "Creating market on-chain" },
+  { id: "db-write", label: "Writing market to database" },
+  { id: "book-register", label: "Registering order book" },
+  { id: "mint", label: "Minting complete set on-chain" },
+  { id: "position-sync", label: "Syncing position ledger" },
+  { id: "exchange-approve", label: "Approving exchange for settlement" },
+  { id: "seed", label: "Seeding two-sided order book" },
+] as const;
+
+type StepPhase = "running" | "success" | "error" | null;
+
+/** Parse a fetch response's SSE body, dispatching each `event:`/`data:` frame.
+ *  Frames are `\n\n`-separated; data is JSON. Tolerates partial chunks. */
+async function readSseStream(
+  stream: ReadableStream<Uint8Array>,
+  handlers: {
+    onStep: (stepId: string) => void;
+    onDone: (data: unknown) => void;
+    onError: (message: string) => void;
+  },
+) {
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    let sep: number;
+    while ((sep = buf.indexOf("\n\n")) !== -1) {
+      const frame = buf.slice(0, sep);
+      buf = buf.slice(sep + 2);
+      let event = "message";
+      let data = "";
+      for (const line of frame.split("\n")) {
+        if (line.startsWith("event:")) event = line.slice(6).trim();
+        else if (line.startsWith("data:")) data += line.slice(5).trim();
+      }
+      if (!data) continue;
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(data);
+      } catch {
+        continue;
+      }
+      if (event === "step") {
+        handlers.onStep((parsed as { step: string }).step);
+      } else if (event === "done") {
+        handlers.onDone(parsed);
+      } else if (event === "error") {
+        handlers.onError(
+          (parsed as { error?: string }).error ?? "Market creation failed",
+        );
+      }
+    }
+  }
+}
+
+/** Live stepper modal driven by the create-market SSE stream. `activeIndex` is
+ *  the in-flight step; everything before it is done, everything after pending.
+ *  On success all steps read done; on error the active step reads failed. */
+function CreateMarketProgressModal({
+  phase,
+  activeIndex,
+  message,
+  onClose,
+}: {
+  phase: StepPhase;
+  activeIndex: number;
+  message: string | null;
+  onClose: () => void;
+}) {
+  if (phase == null) return null;
+  const done = phase === "success";
+  const failed = phase === "error";
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Creating market"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-bg/75 p-4"
+    >
+      <div className="w-full max-w-md border border-line bg-surface p-6 font-mono">
+        <p className="font-pixel text-lg uppercase tracking-wide text-fg">
+          {done
+            ? "market created"
+            : failed
+              ? "creation failed"
+              : "creating market"}
+        </p>
+        <p className="mt-1 text-[11px] uppercase tracking-[0.14em] text-muted/70">
+          {done
+            ? "all steps complete"
+            : failed
+              ? "stopped — nothing left half-created past this point"
+              : "running on-chain + off-chain steps…"}
+        </p>
+
+        <ol className="mt-5 flex flex-col gap-2.5">
+          {CREATE_STEPS.map((step, i) => {
+            const state =
+              done || i < activeIndex
+                ? "done"
+                : failed && i === activeIndex
+                  ? "failed"
+                  : i === activeIndex
+                    ? "active"
+                    : "pending";
+            return (
+              <li key={step.id} className="flex items-center gap-3">
+                <span
+                  className={`flex h-4 w-4 shrink-0 items-center justify-center text-[10px] ${
+                    state === "done"
+                      ? "text-yes"
+                      : state === "failed"
+                        ? "text-no"
+                        : state === "active"
+                          ? "text-accent"
+                          : "text-muted/40"
+                  }`}
+                >
+                  {state === "done" ? (
+                    "✓"
+                  ) : state === "failed" ? (
+                    "✕"
+                  ) : state === "active" ? (
+                    <span className="h-2.5 w-2.5 animate-spin rounded-full border border-accent border-t-transparent" />
+                  ) : (
+                    "○"
+                  )}
+                </span>
+                <span
+                  className={`text-[12px] tracking-[0.02em] ${
+                    state === "pending"
+                      ? "text-muted/45"
+                      : state === "active"
+                        ? "text-fg"
+                        : state === "failed"
+                          ? "text-no"
+                          : "text-fg/70"
+                  }`}
+                >
+                  {step.label}
+                </span>
+              </li>
+            );
+          })}
+        </ol>
+
+        {failed && message && (
+          <p className="mt-4 border-t border-line/60 pt-3 text-[11px] leading-relaxed text-no">
+            {message}
+          </p>
+        )}
+
+        {(done || failed) && (
+          <div className="mt-5 flex justify-end">
+            <button
+              type="button"
+              onClick={onClose}
+              className="border border-line px-4 py-1.5 text-[12px] uppercase tracking-[0.14em] text-muted transition-colors hover:text-fg"
+            >
+              Close
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function CreateMarketForm() {
   const [f, setF] = useState<FormState>(INITIAL);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [payload, setPayload] = useState<object | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [stepPhase, setStepPhase] = useState<StepPhase>(null);
+  const [stepIndex, setStepIndex] = useState(0);
   const [result, setResult] = useState<{
     ok: boolean;
     message: string;
@@ -236,25 +413,41 @@ export function CreateMarketForm() {
     setPayload(body);
     setResult(null);
     setSubmitting(true);
+    // Open the stepper on step 1; SSE events advance it from here.
+    setStepIndex(0);
+    setStepPhase("running");
     try {
       const res = await fetch("/api/admin/create-market", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(body),
       });
-      const data = (await res.json().catch(() => ({}))) as {
-        error?: string;
-      };
-      setResult(
-        res.ok
-          ? { ok: true, message: "Market created & seeded.", data }
-          : {
-              ok: false,
-              message: data?.error ?? `Request failed (${res.status})`,
-              data,
-            },
-      );
+
+      // Auth/validation/upstream failures come back as ordinary JSON, not SSE.
+      if (!res.ok || !res.body) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        const message = data?.error ?? `Request failed (${res.status})`;
+        setStepPhase("error");
+        setResult({ ok: false, message });
+        return;
+      }
+
+      await readSseStream(res.body, {
+        onStep: (stepId) => {
+          const idx = CREATE_STEPS.findIndex((s) => s.id === stepId);
+          if (idx >= 0) setStepIndex(idx);
+        },
+        onDone: (data) => {
+          setStepPhase("success");
+          setResult({ ok: true, message: "Market created & seeded.", data });
+        },
+        onError: (message) => {
+          setStepPhase("error");
+          setResult({ ok: false, message });
+        },
+      });
     } catch (err) {
+      setStepPhase("error");
       setResult({
         ok: false,
         message: err instanceof Error ? err.message : "Network error",
@@ -582,6 +775,13 @@ export function CreateMarketForm() {
           </pre>
         </details>
       ) : null}
+
+      <CreateMarketProgressModal
+        phase={stepPhase}
+        activeIndex={stepIndex}
+        message={result && !result.ok ? result.message : null}
+        onClose={() => setStepPhase(null)}
+      />
     </form>
   );
 }
