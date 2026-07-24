@@ -82,9 +82,9 @@ export function DepositModal({
   const amountBase = parseAmount(amount);
   const balance = deposit.usdccBalance;
   const allowance = deposit.allowance;
-  // Standard flow: VTK minted to the vault (protocol custody, ledger credited).
-  // Voter flow: VTK minted to their own wallet.
-  const receiver = (isVoter ? address : COLLATERAL_VAULT) as `0x${string}`;
+  // New model: VTK is minted to the user's OWN wallet for everyone (self-custody).
+  // The backend then mirrors the ledger's available balance to the wallet's VTK.
+  const receiver = address as `0x${string}`;
 
   const insufficient =
     amountBase != null && balance != null && amountBase > balance;
@@ -92,15 +92,11 @@ export function DepositModal({
     amountBase != null && allowance != null && amountBase > allowance;
   const canAct = amountBase != null && !insufficient && !!address;
 
-  // Standard flow only: after the on-chain deposit confirms, report the hash so
-  // the backend credits the ledger. The tx already succeeded and the call is
+  // After the on-chain deposit confirms, report the hash so the backend syncs the
+  // ledger's available balance to the wallet's on-chain VTK. Every user posts now
+  // (VTK is always self-custodied). The tx already succeeded and the call is
   // idempotent, so a failure here is a sync hiccup, never lost funds.
   async function syncCredit() {
-    if (isVoter) {
-      onDeposited();
-      onClose();
-      return;
-    }
     const hash = lastHash.current;
     if (!hash) return;
     setSyncing(true);

@@ -1,10 +1,13 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { RainbowKitProvider, darkTheme } from "@rainbow-me/rainbowkit";
-import { WagmiProvider, useAccountEffect } from "wagmi";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { WagmiProvider, useAccount, useAccountEffect } from "wagmi";
+import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { wagmiConfig } from "@/lib/wagmi/config";
-import { ensureAccount } from "@/lib/profile/data";
+import { ensureAccount, getUserIdentity } from "@/lib/profile/data";
+import { useDepositState } from "@/lib/deposit/useDepositState";
+import { OnboardingWizard } from "@/components/onboarding/OnboardingWizard";
 import "@rainbow-me/rainbowkit/styles.css";
 
 const queryClient = new QueryClient();
@@ -16,6 +19,45 @@ function AccountSync() {
     },
   });
   return null;
+}
+
+/**
+ * Auto-opens the onboarding wizard for a connected wallet that hasn't enabled
+ * trading yet (no VTK→Exchange allowance). Once dismissed it stays closed for
+ * the session, and it never opens for wallets that are already set up.
+ */
+function OnboardingGate() {
+  const { address, isConnected } = useAccount();
+  const [open, setOpen] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
+  const { vtkAllowanceToExchange } = useDepositState();
+
+  const { data: identity } = useQuery({
+    queryKey: ["identity", address],
+    queryFn: () => getUserIdentity(address as string),
+    enabled: isConnected && !!address,
+  });
+
+  const onboarded = vtkAllowanceToExchange != null && vtkAllowanceToExchange > 0n;
+
+  useEffect(() => {
+    if (!isConnected || !address || dismissed) return;
+    if (vtkAllowanceToExchange == null) return; // still loading on-chain reads
+    if (!onboarded) setOpen(true);
+  }, [isConnected, address, dismissed, onboarded, vtkAllowanceToExchange]);
+
+  if (!isConnected || !address) return null;
+
+  return (
+    <OnboardingWizard
+      open={open}
+      onClose={() => {
+        setOpen(false);
+        setDismissed(true);
+      }}
+      identity={identity ?? null}
+    />
+  );
 }
 
 const theme = darkTheme({
@@ -31,6 +73,7 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
       <QueryClientProvider client={queryClient}>
         <RainbowKitProvider theme={theme}>
           <AccountSync />
+          <OnboardingGate />
           {children}
         </RainbowKitProvider>
       </QueryClientProvider>

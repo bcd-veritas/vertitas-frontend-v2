@@ -118,6 +118,54 @@ export async function updateUserIdentity(
   return (await res.json()) as UserIdentity;
 }
 
+export type EnableTradingResult = {
+  funded: boolean;
+  alreadyFunded: boolean;
+  amount: string;
+  txHash: string | null;
+};
+
+/**
+ * Operator seeds the user with USDCC (once per wallet). The onboarding wizard's
+ * "enable trading" step calls this. Idempotent server-side, so a retry is safe.
+ * Throws with the API's message so the wizard can show it.
+ */
+export async function enableTrading(wallet: string): Promise<EnableTradingResult> {
+  const res = await fetch(`${API}/users/${wallet}/enable-trading`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as {
+      message?: string;
+    } | null;
+    throw new Error(body?.message ?? `HTTP ${res.status}`);
+  }
+  return (await res.json()) as EnableTradingResult;
+}
+
+/** On-chain allowances/balances (raw base-unit strings). */
+export type Allowances = {
+  walletAddress: string;
+  /** USDCC allowance granted to the CollateralVault (gates the deposit step). */
+  usdccToVault: string;
+  /** VTK allowance granted to the Exchange (the settlement/enable-trading step). */
+  vtkToExchange: string;
+  usdccBalance: string;
+  vtkBalance: string;
+};
+
+/** Reads the onboarding wizard uses to know which steps are done. Null on failure. */
+export async function getAllowances(wallet: string): Promise<Allowances | null> {
+  try {
+    const res = await fetch(`${API}/users/${wallet}/allowances`);
+    if (!res.ok) return null;
+    return (await res.json()) as Allowances;
+  } catch {
+    return null;
+  }
+}
+
 /** Ledger balances in dollars (API is 1e8 fixed-point strings). Null = fetch failed. */
 export async function getCollateralDollars(
   wallet: string,
