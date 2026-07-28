@@ -17,6 +17,7 @@ import {
 import { buildOrderTypedData, type OrderIntent } from "@/lib/orders/eip712";
 import { submitEnabled, submitSignedOrder, OrderRejectedError } from "@/lib/orders/data";
 import { getCollateralDollars, getPositionShares } from "@/lib/profile/data";
+import { useOracleRole } from "@/lib/uma/useOracleRole";
 import { useUserRoom } from "@/lib/realtime/hooks";
 import { RollingNumber } from "../profile/RollingNumber";
 import { Frame } from "./Frame";
@@ -89,6 +90,12 @@ export function TradePanel({
   const { address, isConnected, chainId: walletChainId } = useAccount();
   const chainId = useChainId();
   const { switchChain } = useSwitchChain();
+  // Oracle participants (proposer / disputer / committee voter) are barred from
+  // trading on ANY market — they help decide outcomes, so trading is a conflict
+  // of interest. Global role, market-independent. `loaded` gates the block so a
+  // normal trader isn't blocked during the read's round-trip.
+  const oracleRole = useOracleRole();
+  const oracleBlocked = isConnected && oracleRole.loaded && oracleRole.isOracleParticipant;
   // useChainId() reports the CONFIG's chain (falls back to sepolia even when
   // the wallet sits on mainnet), so the guard must read the wallet's actual
   // chain from useAccount — otherwise signTypedData dies with viem's
@@ -226,7 +233,9 @@ export function TradePanel({
 
   /* ---------- validation → CTA state ladder ---------- */
   // Each check returns the disabled-reason label or null.
-  const invalidReason = !live
+  const invalidReason = oracleBlocked
+    ? "oracle participants can’t trade"
+    : !live
     ? ended
       ? "market ended"
       : "market closed"
@@ -254,6 +263,9 @@ export function TradePanel({
   /* ---------- submit ---------- */
   const placeOrder = async () => {
     if (!outcome || !address) return;
+    // Safety belt: the CTA is already disabled for oracle participants, but
+    // never let a role-holder's order through even if the button is reached.
+    if (oracleBlocked) return;
     // Intake rejects prices off the tick grid, and a market order's VWAP can
     // land between ticks — snap toward the marketable side (buys round up,
     // sells down) so the order still crosses, clamped inside (0, 100).
@@ -318,6 +330,8 @@ export function TradePanel({
   /* ---------- CTA label ---------- */
   const cta = !isConnected
     ? "CONNECT"
+    : oracleBlocked
+    ? "TRADING DISABLED"
     : phase === "signing"
       ? "CONFIRM IN WALLET…"
       : phase === "submitting"
@@ -418,6 +432,28 @@ export function TradePanel({
       tickColor={flood}
       right={modeTabs}
     >
+      {/* Oracle participants (proposer / disputer / voter) are barred from
+          trading — cover the whole panel rather than hide it, so the context
+          stays visible behind a dimmed, non-interactive veil. */}
+      {oracleBlocked && (
+        <div
+          role="note"
+          aria-label="Trading disabled for oracle participants"
+          className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-2 bg-surface/85 px-8 text-center backdrop-blur-[3px]"
+        >
+          <span aria-hidden="true" className="text-2xl leading-none text-muted/70">
+            ⊘
+          </span>
+          <p className="font-pixel text-lg uppercase tracking-[0.12em] text-fg">
+            trading disabled
+          </p>
+          <p className="max-w-[15rem] font-mono text-[11px] leading-relaxed uppercase tracking-[0.1em] text-muted">
+            oracle participants can’t trade — your wallet helps decide market
+            outcomes
+          </p>
+        </div>
+      )}
+
       {/* outcome strip: color dot + label + side chip + live cents */}
       <div className="flex items-center gap-2 px-5 pt-1 pb-3 border-b border-line/50">
         <span

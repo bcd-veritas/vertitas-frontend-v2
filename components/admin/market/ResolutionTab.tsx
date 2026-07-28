@@ -19,6 +19,11 @@ export function ResolutionTab({
   const [data, setData] = useState<MarketResolution | null>(null);
   const [phase, setPhase] = useState<"idle" | "submitting" | "submitted" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
+  // Durable "outcome submitted on-chain, cron hasn't finalized yet" flag, read
+  // from the server (on-chain truth) — this is what keeps the resolve buttons
+  // hidden across a page refresh during the ~60s finalize window, unlike the
+  // client-only `phase`.
+  const [finalizing, setFinalizing] = useState(false);
   // Outcome index awaiting confirmation — an on-chain, irreversible resolve
   // must not fire on a single accidental click.
   const [pending, setPending] = useState<number | null>(null);
@@ -33,8 +38,19 @@ export function ResolutionTab({
   useEffect(() => {
     let alive = true;
     const load = () => getMarketResolution(marketId).then((d) => alive && setData(d));
+    const loadStatus = () =>
+      fetch(`/api/admin/markets/${marketId}/resolve-status`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((s: { submittedOnchain?: boolean; resolvedAt?: string | null } | null) => {
+          if (alive && s) setFinalizing(Boolean(s.submittedOnchain) && !s.resolvedAt);
+        })
+        .catch(() => {});
     load();
-    const t = setInterval(load, 15_000);
+    loadStatus();
+    const t = setInterval(() => {
+      load();
+      loadStatus();
+    }, 15_000);
     return () => {
       alive = false;
       clearInterval(t);
@@ -64,12 +80,16 @@ export function ResolutionTab({
   };
 
   const r = data?.resolution;
+  // Show the finalizing state whenever the outcome is in flight — from the
+  // local click (submitting/submitted) OR the durable server flag (survives
+  // refresh). Buttons hide the moment any of these is true.
+  const showFinalizing =
+    finalizing || phase === "submitting" || phase === "submitted";
   const canSubmit =
     data?.status === "ENDED" &&
     resolverType === "ADMIN" &&
     !r?.resolvedAt &&
-    phase !== "submitting" &&
-    phase !== "submitted";
+    !showFinalizing;
 
   const pendingLabel =
     pending == null ? "" : outcomes.find((o) => o.index === pending)?.label ?? "";
@@ -89,10 +109,15 @@ export function ResolutionTab({
             <span className="text-fg/85">{r?.disputed ? "yes" : "no"}</span>
           </div>
 
-          {phase === "submitted" && !r?.resolvedAt && (
-            <p className="text-muted uppercase tracking-[0.1em]">
-              outcome submitted — resolving on the next sweep (≤60s)…
-            </p>
+          {showFinalizing && !r?.resolvedAt && (
+            <div className="flex items-center gap-2 text-muted uppercase tracking-[0.1em]">
+              <span className="h-3 w-3 animate-spin rounded-full border border-accent border-t-transparent" />
+              <span>
+                {phase === "submitting"
+                  ? "submitting outcome on-chain…"
+                  : "outcome submitted — finalizing on the next sweep (≤60s)…"}
+              </span>
+            </div>
           )}
           {error && <p className="text-no">{error}</p>}
 

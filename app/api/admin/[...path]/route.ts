@@ -53,12 +53,29 @@ export async function POST(
       body,
       cache: "no-store",
     });
+
+    const contentType = upstream.headers.get("content-type") ?? "";
+
+    // Server-Sent Events (create-market progress): pass the stream straight
+    // through instead of buffering with .text(), so the client sees each step
+    // as it lands rather than all at once when the request finishes.
+    if (contentType.includes("text/event-stream") && upstream.body) {
+      return new Response(upstream.body, {
+        status: upstream.status,
+        headers: {
+          "content-type": "text/event-stream",
+          "cache-control": "no-cache, no-transform",
+          connection: "keep-alive",
+          "x-accel-buffering": "no",
+        },
+      });
+    }
+
     const text = await upstream.text();
     return new Response(text, {
       status: upstream.status,
       headers: {
-        "content-type":
-          upstream.headers.get("content-type") ?? "application/json",
+        "content-type": contentType || "application/json",
       },
     });
   } catch {
