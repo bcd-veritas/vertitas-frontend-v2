@@ -11,12 +11,23 @@ import { PixelHeading } from "../landing/ui/PixelHeading";
 
 gsap.registerPlugin(useGSAP);
 
-type Sort = "volume" | "closing" | "newest";
-const SORTS: { id: Sort; label: string }[] = [
-  { id: "volume", label: "Volume" },
-  { id: "closing", label: "Closing soon" },
-  { id: "newest", label: "Newest" },
+type StatusFilter = "all" | "active" | "resolving" | "resolved";
+const STATUS_FILTERS: { id: StatusFilter; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "active", label: "Active" },
+  { id: "resolving", label: "Resolving" },
+  { id: "resolved", label: "Resolved" },
 ];
+/** Filter id → the market status it matches (ENDED = resolving, awaiting the
+ *  oracle outcome). "all" applies no status filter. */
+const STATUS_MATCH: Record<
+  Exclude<StatusFilter, "all">,
+  ApiMarket["status"]
+> = {
+  active: "ACTIVE",
+  resolving: "ENDED",
+  resolved: "RESOLVED",
+};
 
 const statusRank = (m: ApiMarket) => (m.status === "ACTIVE" ? 0 : 1);
 
@@ -48,7 +59,7 @@ export function MarketBoard({
   onResetSearch: () => void;
 }) {
   const [category, setCategory] = useState<string>("All");
-  const [sort, setSort] = useState<Sort>("volume");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [boardMarkets, setBoardMarkets] = useState<ApiMarket[]>(markets);
   const [loading, setLoading] = useState(false);
   const gridRef = useRef<HTMLDivElement>(null);
@@ -78,30 +89,28 @@ export function MarketBoard({
 
   const filtered = useMemo(() => {
     let list = boardMarkets.filter((m) => !m.isFeatured);
+    if (statusFilter !== "all") {
+      const target = STATUS_MATCH[statusFilter];
+      list = list.filter((m) => m.status === target);
+    }
     const q = search.trim().toLowerCase();
     if (q) list = list.filter((m) => m.title.toLowerCase().includes(q));
+    // Live markets first, then by traded volume (within any active filter the
+    // status is uniform, so this is just a volume sort).
     return [...list].sort((a, b) => {
       const rank = statusRank(a) - statusRank(b);
       if (rank !== 0) return rank;
-      switch (sort) {
-        case "volume": {
-          const d = BigInt(b.volume) - BigInt(a.volume);
-          return d > 0n ? 1 : d < 0n ? -1 : 0;
-        }
-        case "closing":
-          return +new Date(a.endTime) - +new Date(b.endTime);
-        case "newest":
-          return +new Date(b.createdAt) - +new Date(a.createdAt);
-      }
+      const d = BigInt(b.volume) - BigInt(a.volume);
+      return d > 0n ? 1 : d < 0n ? -1 : 0;
     });
-  }, [boardMarkets, search, sort]);
+  }, [boardMarkets, search, statusFilter]);
 
   // Infinite scroll — reveal the client-filtered list in batches instead of
   // rendering every card at once. Search / sort / category stay client-side, so
   // we grow a slice of `filtered` rather than fetching pages; any filter change
   // resets the window to the first batch.
   const [visibleCount, setVisibleCount] = useState(MARKETS_BATCH);
-  const filterKey = `${category}|${sort}|${search}`;
+  const filterKey = `${category}|${statusFilter}|${search}`;
   const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
   if (filterKey !== prevFilterKey) {
     setPrevFilterKey(filterKey);
@@ -145,6 +154,7 @@ export function MarketBoard({
 
   const reset = () => {
     selectCategory("All");
+    setStatusFilter("all");
     onResetSearch();
   };
 
@@ -183,13 +193,13 @@ export function MarketBoard({
         </div>
 
         <div className="ml-auto flex items-center gap-1 pb-2">
-          <MonoLabel className="mr-2 hidden sm:inline">sort //</MonoLabel>
-          {SORTS.map(({ id, label }) => {
-            const on = sort === id;
+          <MonoLabel className="mr-2 hidden sm:inline">status //</MonoLabel>
+          {STATUS_FILTERS.map(({ id, label }) => {
+            const on = statusFilter === id;
             return (
               <button
                 key={id}
-                onClick={() => setSort(id)}
+                onClick={() => setStatusFilter(id)}
                 aria-pressed={on}
                 className={`px-2.5 py-1 rounded-md border font-mono text-[11px] uppercase tracking-[0.14em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${on ? "bg-accent text-bg border-accent font-semibold" : "border-fg/20 bg-fg/[0.04] text-muted hover:text-fg/90 hover:border-fg/45 hover:bg-fg/8"
                   }`}
@@ -205,7 +215,7 @@ export function MarketBoard({
       <MonoLabel className="block mb-5">
         {loading
           ? "loading //"
-          : `${filtered.length} market${filtered.length === 1 ? "" : "s"} // live`}
+          : `${filtered.length} market${filtered.length === 1 ? "" : "s"} // ${statusFilter === "all" ? "shown" : statusFilter}`}
       </MonoLabel>
 
       {!loading && filtered.length === 0 ? (

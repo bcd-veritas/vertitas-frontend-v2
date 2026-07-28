@@ -7,6 +7,34 @@ import { closesLabel, countdown, formatVol, multiplier, oneDp, rankedOutcomes } 
 import { CategoryIcon } from "./categoryIcon";
 import { MonoLabel } from "../landing/ui/MonoLabel";
 
+/** Non-live state word for the card's tag. ENDED = closed and awaiting the
+ *  oracle outcome ("resolving"); RESOLVED = outcome settled. */
+function statusWord(status: ApiMarket["status"]): string {
+  switch (status) {
+    case "ENDED":
+      return "resolving";
+    case "RESOLVED":
+      return "resolved";
+    case "CANCELLED":
+      return "cancelled";
+    default:
+      return "open";
+  }
+}
+
+/** Footer tint: resolving stays accent-tinted (in progress), resolved/cancelled
+ *  read as muted/negative. */
+function statusTone(status: ApiMarket["status"]): string {
+  switch (status) {
+    case "ENDED":
+      return "text-accent/80";
+    case "CANCELLED":
+      return "text-no/70";
+    default:
+      return "text-muted";
+  }
+}
+
 /** Yes→green, No→red; for multi-outcome markets the leader is green, rest red. */
 function colorFor(label: string, rank: number): { text: string; bar: string } {
   const l = label.toLowerCase();
@@ -96,6 +124,7 @@ export function MarketCard({
   featured?: boolean;
 }) {
   const live = market.status === "ACTIVE";
+  const word = statusWord(market.status);
   const href = `/markets/${market.id}`;
   const ranked = rankedOutcomes(market).slice(0, 2);
   const leadPct = ranked[0]?.pct ?? null;
@@ -144,7 +173,7 @@ export function MarketCard({
           <MonoLabel className="truncate">
             {live
               ? `mkt.${(market.category ?? "open").replace(/\s+/g, "")} // closes ${closesLabel(market.endTime)}`
-              : `mkt.resolved // ${market.category ?? "open"}`}
+              : `mkt.${word} // ${market.category ?? "open"}`}
             {featured && <span className="text-accent"> ★ featured</span>}
           </MonoLabel>
         </div>
@@ -178,8 +207,8 @@ export function MarketCard({
           <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted tabular-nums">
             {formatVol(market.volume)}
           </span>
-          <span className={`font-mono text-[11px] tracking-[0.14em] tabular-nums ${live ? "text-accent/80" : "text-muted"}`}>
-            {live ? (clock ?? "—") : "RESOLVING"}
+          <span className={`font-mono text-[11px] tracking-[0.14em] tabular-nums ${live ? "text-accent/80" : statusTone(market.status)}`}>
+            {live ? (clock ?? "—") : word.toUpperCase()}
           </span>
         </div>
       </div>
