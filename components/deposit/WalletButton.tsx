@@ -5,29 +5,25 @@ import { useQuery } from "@tanstack/react-query";
 import { useAccount } from "wagmi";
 
 import { getUserIdentity, isVoterRole } from "@/lib/profile/data";
-import { DepositModal } from "./DepositModal";
+import { WalletModal } from "./WalletModal";
 
 /**
- * The single deposit entry point for every wallet. One button — the modal's
- * behaviour branches on role: voters/oracle participants receive VTK in their
- * wallet, everyone else has their off-chain balance credited. Renders nothing
- * until a wallet is connected.
+ * Topbar funds entry point — one "Wallet" button opening the combined
+ * Deposit / Withdraw modal. The deposit copy still branches on role (voters
+ * deposit for wallet VTK to post bonds); withdraw is role-agnostic. Renders
+ * nothing until a wallet is connected.
  */
-export function DepositButton({
+export function WalletButton({
   className,
-  children,
-  onDeposited,
+  onChanged,
 }: {
   className?: string;
-  children?: React.ReactNode;
-  /** Called after a deposit is confirmed + synced — refresh balances here. */
-  onDeposited?: () => void;
+  /** Called after a deposit or withdrawal is confirmed + synced. */
+  onChanged?: () => void;
 }) {
   const { address, isConnected } = useAccount();
   const [open, setOpen] = useState(false);
 
-  // Role decides the flow; GET /users/:wallet already returns it. Falls back to
-  // the standard (ledger-credit) flow if identity can't be read.
   const { data: identity } = useQuery({
     queryKey: ["identity", address],
     queryFn: () => getUserIdentity(address as string),
@@ -35,8 +31,6 @@ export function DepositButton({
   });
 
   if (!isConnected || !address) return null;
-
-  const isVoter = isVoterRole(identity?.role);
 
   return (
     <>
@@ -48,14 +42,14 @@ export function DepositButton({
           "pill pill-solid py-1.5! px-4! text-xs font-mono uppercase tracking-wider shrink-0 cursor-pointer"
         }
       >
-        {children ?? (isVoter ? "Add VTK" : "Deposit")}
+        Wallet
       </button>
 
-      <DepositModal
+      <WalletModal
         open={open}
         onClose={() => setOpen(false)}
-        isVoter={isVoter}
-        onDeposited={() => onDeposited?.()}
+        isVoter={isVoterRole(identity?.role)}
+        onChanged={() => onChanged?.()}
       />
     </>
   );

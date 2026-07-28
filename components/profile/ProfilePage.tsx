@@ -142,9 +142,6 @@ export function ProfilePage({ markets }: { markets: ApiMarket[] }) {
             <GradientAvatar seed={address} size={40} />
             <span className="font-semibold text-fg truncate">{displayName}</span>
           </span>
-          <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted shrink-0">
-            sim.data // 2026
-          </span>
         </div>
 
         {/* Sub-row — reference's nav row: wallet address | disconnect. */}
@@ -211,9 +208,6 @@ export function ProfilePage({ markets }: { markets: ApiMarket[] }) {
                   }`}
               />
             </div>
-            <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted">
-              90d // sim.data
-            </span>
           </div>
           <div className="px-2 sm:px-5 pb-6">
             <PnlChart points={profile.pnlSeries} height={260} onHoverValue={setHoverUsd} />

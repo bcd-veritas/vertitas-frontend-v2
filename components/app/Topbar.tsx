@@ -9,7 +9,7 @@ import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { GradientAvatar } from "../profile/GradientAvatar";
 import { getCollateralDollars } from "@/lib/profile/data";
 import { useUserRoom } from "@/lib/realtime/hooks";
-import { DepositButton } from "../deposit/DepositButton";
+import { WalletButton } from "../deposit/WalletButton";
 import { EnableTradingButton } from "../deposit/EnableTradingButton";
 
 /** Off-chain ledger balances beside the profile pill — available (spendable)
@@ -67,9 +67,9 @@ function CollateralReadout() {
       {/* One-time VTK→Exchange approval; self-hides once granted. */}
       <EnableTradingButton />
       {/* Reuses the same refresh the realtime socket drives, so the readout
-          above updates the moment a deposit is credited. */}
-      <DepositButton
-        onDeposited={refresh}
+          above updates the moment a deposit or withdrawal settles. */}
+      <WalletButton
+        onChanged={refresh}
         className="pill pill-solid py-1.5! px-3! text-[11px] font-mono uppercase tracking-wider shrink-0 cursor-pointer"
       />
     </div>

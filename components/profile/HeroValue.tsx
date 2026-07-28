@@ -69,7 +69,7 @@ export function HeroValue({
         >
           {sign}
           <CountUp value={Math.abs(pnlCents) / 100} prefix="$" decimals={2} /> ({sign}
-          <CountUp value={Math.abs(pnlPct)} decimals={1} suffix="%" />) ALL TIME · SIM.DATA
+          <CountUp value={Math.abs(pnlPct)} decimals={1} suffix="%" />) ALL TIME
         </p>
 
         {/* Reference's "BEGIN ANALYSIS ↗" — ours is the inert Deposit CTA. */}

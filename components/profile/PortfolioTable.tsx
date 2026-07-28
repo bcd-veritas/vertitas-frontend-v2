@@ -49,9 +49,6 @@ export function PortfolioTable({
         <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight text-fg uppercase">
           Portfolio
         </h2>
-        <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted">
-          sim.data
-        </span>
       </div>
 
       {/* Positions / Open Orders / History toggle */}
@@ -64,9 +61,8 @@ export function PortfolioTable({
               role="tab"
               aria-selected={on}
               onClick={() => setTab(id)}
-              className={`px-3 py-1.5 rounded font-mono text-[11px] uppercase tracking-[0.14em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${
-                on ? "text-fg bg-fg/5" : "text-muted hover:text-fg/80"
-              }`}
+              className={`px-3 py-1.5 rounded font-mono text-[11px] uppercase tracking-[0.14em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${on ? "text-fg bg-fg/5" : "text-muted hover:text-fg/80"
+                }`}
             >
               {label} <span className="tabular-nums opacity-60">{count}</span>
             </button>
@@ -124,9 +120,8 @@ function PositionsTable({ rows }: { rows: PositionRow[] }) {
                   ${value.toFixed(2)}
                 </td>
                 <td
-                  className={`px-5 py-2.5 font-mono text-[11px] tabular-nums text-right whitespace-nowrap ${
-                    pnl >= 0 ? "text-yes" : "text-no"
-                  }`}
+                  className={`px-5 py-2.5 font-mono text-[11px] tabular-nums text-right whitespace-nowrap ${pnl >= 0 ? "text-yes" : "text-no"
+                    }`}
                 >
                   {signedUsd(pnl)}
                 </td>
@@ -169,9 +164,8 @@ function OrdersTable({ rows }: { rows: OpenOrderRow[] }) {
                 <td className="px-5 py-2.5 text-fg/90 max-w-60 truncate">{r.market}</td>
                 <td className="px-3 py-2.5 text-fg/70 whitespace-nowrap">{r.outcome}</td>
                 <td
-                  className={`px-3 py-2.5 font-mono text-[11px] tracking-widest ${
-                    r.side === "BUY" ? "text-yes" : "text-no"
-                  }`}
+                  className={`px-3 py-2.5 font-mono text-[11px] tracking-widest ${r.side === "BUY" ? "text-yes" : "text-no"
+                    }`}
                 >
                   {r.side}
                 </td>
@@ -231,9 +225,8 @@ function HistoryTable({ rows }: { rows: ActivityRow[] }) {
                 {utcStamp(r.t)}
               </td>
               <td
-                className={`px-3 py-2.5 font-mono text-[11px] tracking-widest ${
-                  r.action === "BOUGHT" ? "text-yes" : "text-no"
-                }`}
+                className={`px-3 py-2.5 font-mono text-[11px] tracking-widest ${r.action === "BOUGHT" ? "text-yes" : "text-no"
+                  }`}
               >
                 {r.action}
               </td>

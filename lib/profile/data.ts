@@ -99,6 +99,35 @@ export async function postDeposit(txHash: string): Promise<DepositResult> {
   return (await res.json()) as DepositResult;
 }
 
+export type WithdrawResult = {
+  completed: boolean;
+  alreadyProcessed: boolean;
+  /** USDCC returned, 6-dec base-unit string. */
+  amount: string;
+};
+
+/**
+ * Report a confirmed CollateralVault redeem (VTK→USDCC) so the backend verifies
+ * the receipt on-chain, records the withdrawal, and re-syncs the ledger's
+ * available balance to the wallet's now-lower VTK. Idempotent server-side via
+ * the tx hash, so a retry after a failed post is safe. Throws with the API's
+ * message so the modal can show a retry.
+ */
+export async function postWithdrawal(txHash: string): Promise<WithdrawResult> {
+  const res = await fetch(`${API}/withdrawals`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ txHash }),
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as {
+      message?: string;
+    } | null;
+    throw new Error(body?.message ?? `HTTP ${res.status}`);
+  }
+  return (await res.json()) as WithdrawResult;
+}
+
 /** Throws with the API's message (validation, username/email taken). */
 export async function updateUserIdentity(
   wallet: string,

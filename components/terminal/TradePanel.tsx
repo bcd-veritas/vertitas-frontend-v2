@@ -236,27 +236,27 @@ export function TradePanel({
   const invalidReason = oracleBlocked
     ? "oracle participants can’t trade"
     : !live
-    ? ended
-      ? "market ended"
-      : "market closed"
-    : !outcome
-      ? "select an outcome"
-      : mode === "MARKET" && (Number(amount) || 0) <= 0
-        ? null // empty input: CTA shows action label, disabled without reason row
-        : mode === "MARKET" && est.shares <= 0
-          ? "no liquidity"
-          : action === "buy" && collateral != null && est.cost > collateral.available + 1e-9
-            ? `insufficient funds — $${collateral.available.toFixed(2)} available`
-            : action === "sell" && heldShares != null && est.shares > heldShares + 1e-9
-              ? `you hold ${heldShares.toFixed(2)} shares`
-              : mode === "LIMIT" && ((Number(limitCents) || 0) <= 0 || (Number(limitShares) || 0) <= 0)
-                ? null
-                : mode === "LIMIT" &&
-                  Math.abs((Number(limitCents) / tickCents) - Math.round(Number(limitCents) / tickCents)) > 1e-9
-                  ? `price must step by ${tickCents}¢`
-                  : est.shares > 0 && est.shares < minShares
-                    ? `min order ${minShares} shares`
-                    : null;
+      ? ended
+        ? "market ended"
+        : "market closed"
+      : !outcome
+        ? "select an outcome"
+        : mode === "MARKET" && (Number(amount) || 0) <= 0
+          ? null // empty input: CTA shows action label, disabled without reason row
+          : mode === "MARKET" && est.shares <= 0
+            ? "no liquidity"
+            : action === "buy" && collateral != null && est.cost > collateral.available + 1e-9
+              ? `insufficient funds — $${collateral.available.toFixed(2)} available`
+              : action === "sell" && heldShares != null && est.shares > heldShares + 1e-9
+                ? `you hold ${heldShares.toFixed(2)} shares`
+                : mode === "LIMIT" && ((Number(limitCents) || 0) <= 0 || (Number(limitShares) || 0) <= 0)
+                  ? null
+                  : mode === "LIMIT" &&
+                    Math.abs((Number(limitCents) / tickCents) - Math.round(Number(limitCents) / tickCents)) > 1e-9
+                    ? `price must step by ${tickCents}¢`
+                    : est.shares > 0 && est.shares < minShares
+                      ? `min order ${minShares} shares`
+                      : null;
   const ready =
     live && outcome && est.shares >= minShares && invalidReason == null && phase !== "signing" && phase !== "submitting";
 
@@ -331,19 +331,19 @@ export function TradePanel({
   const cta = !isConnected
     ? "CONNECT"
     : oracleBlocked
-    ? "TRADING DISABLED"
-    : phase === "signing"
-      ? "CONFIRM IN WALLET…"
-      : phase === "submitting"
-        ? "SUBMITTING…"
-        : phase === "done"
-          ? submitEnabled
-            ? "ORDER PLACED"
-            : "ORDER SIGNED"
-          : (binary
-            ? `${action} ${side}`
-            : `${action} ${side} — ${outcome?.label ?? ""}`
-          ).toUpperCase();
+      ? "TRADING DISABLED"
+      : phase === "signing"
+        ? "CONFIRM IN WALLET…"
+        : phase === "submitting"
+          ? "SUBMITTING…"
+          : phase === "done"
+            ? submitEnabled
+              ? "ORDER PLACED"
+              : "ORDER SIGNED"
+            : (binary
+              ? `${action} ${side}`
+              : `${action} ${side} — ${outcome?.label ?? ""}`
+            ).toUpperCase();
 
   const yesToneActive = side === "yes";
   // Buy shows the ask (what you pay); Sell shows the bid (what you receive).
@@ -661,9 +661,7 @@ export function TradePanel({
       {/* footer microcopy */}
       <div className="px-5 py-4">
         <p className="font-mono text-[11px] uppercase tracking-[0.1em] text-muted/50">
-          {submitEnabled
-            ? "orders are eip-712 signed · sim.data"
-            : "orders are eip-712 signed"}
+          {"orders are eip-712 signed"}
         </p>
       </div>
     </Frame>
