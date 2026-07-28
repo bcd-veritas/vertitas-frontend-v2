@@ -18,6 +18,7 @@ import {
   getWinRate,
   getOpenOrders,
   getTradeHistory,
+  cancelUserOrder,
   type UserIdentity,
   type PortfolioValue,
 } from "@/lib/profile/data";
@@ -121,6 +122,16 @@ export function ProfilePage({ markets }: { markets: ApiMarket[] }) {
     setTimeout(() => setCopied(false), 1500);
   };
 
+  // Cancel a resting order (server releases its locked collateral back to
+  // available). Drop the row on success; total collateral is unchanged
+  // (locked → available), so the hero value needs no refetch. Returns success
+  // so the button can surface a retry on failure.
+  const cancelOrder = async (orderId: string): Promise<boolean> => {
+    const ok = await cancelUserOrder(orderId, address);
+    if (ok) setOpenOrders((prev) => prev.filter((o) => o.id !== orderId));
+    return ok;
+  };
+
   // Hero value = mark value of open positions + collateral on hand. 
   // PnL is the unrealized figure across open positions (all-time realized PnL has no
   // endpoint yet). Both default to 0 until the fetch resolves.
@@ -220,6 +231,7 @@ export function ProfilePage({ markets }: { markets: ApiMarket[] }) {
           positions={portfolio?.positions ?? []}
           openOrders={openOrders}
           history={history}
+          onCancelOrder={cancelOrder}
         />
       </main>
       <SystemFooter markets={markets} />

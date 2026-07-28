@@ -1,9 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { ActivityRow, OpenOrderRow, PositionRow } from "@/lib/profile/mock";
+import { ConfirmDialog } from "../common/ConfirmDialog";
 
 type Tab = "positions" | "orders" | "history";
+
+/** Rows shown per page in each portfolio tab. */
+const PORTFOLIO_PAGE_SIZE = 10;
 
 const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
 
@@ -30,18 +35,43 @@ export function PortfolioTable({
   positions,
   openOrders,
   history,
+  onCancelOrder,
 }: {
   positions: PositionRow[];
   openOrders: OpenOrderRow[];
   history: ActivityRow[];
+  /** Cancel a resting order by id; resolves true on success. */
+  onCancelOrder?: (orderId: string) => Promise<boolean>;
 }) {
   const [tab, setTab] = useState<Tab>("positions");
+
+  // One page index shared across tabs, reset to the first page on tab switch so
+  // you never land on an out-of-range page when moving to a shorter tab.
+  const [page, setPage] = useState(1);
+  const [prevTab, setPrevTab] = useState(tab);
+  if (tab !== prevTab) {
+    setPrevTab(tab);
+    setPage(1);
+  }
 
   const tabs: { id: Tab; label: string; count: number }[] = [
     { id: "positions", label: "Positions", count: positions.length },
     { id: "orders", label: "Open Orders", count: openOrders.length },
     { id: "history", label: "History", count: history.length },
   ];
+
+  // Page math off the active tab's length. `currentPage` clamps against a data
+  // refetch shrinking the list under a page the user had advanced to.
+  const activeCount =
+    tab === "positions"
+      ? positions.length
+      : tab === "orders"
+        ? openOrders.length
+        : history.length;
+  const totalPages = Math.max(1, Math.ceil(activeCount / PORTFOLIO_PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const start = (currentPage - 1) * PORTFOLIO_PAGE_SIZE;
+  const end = start + PORTFOLIO_PAGE_SIZE;
 
   return (
     <section className="relative border-b border-line" aria-label="Portfolio">
@@ -70,9 +100,38 @@ export function PortfolioTable({
         })}
       </div>
 
-      {tab === "positions" && <PositionsTable rows={positions} />}
-      {tab === "orders" && <OrdersTable rows={openOrders} />}
-      {tab === "history" && <HistoryTable rows={history} />}
+      {tab === "positions" && <PositionsTable rows={positions.slice(start, end)} />}
+      {tab === "orders" && (
+        <OrdersTable rows={openOrders.slice(start, end)} onCancel={onCancelOrder} />
+      )}
+      {tab === "history" && <HistoryTable rows={history.slice(start, end)} />}
+
+      {/* Prev / next — only when the active tab spans more than one page. */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-4 py-5">
+          <button
+            type="button"
+            onClick={() => setPage(currentPage - 1)}
+            disabled={currentPage <= 1}
+            aria-label="Previous page"
+            className="pill pill-ghost p-1.5! disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+          >
+            <ChevronLeft size={16} aria-hidden="true" />
+          </button>
+          <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted tabular-nums">
+            page {currentPage} / {totalPages}
+          </span>
+          <button
+            type="button"
+            onClick={() => setPage(currentPage + 1)}
+            disabled={currentPage >= totalPages}
+            aria-label="Next page"
+            className="pill pill-ghost p-1.5! disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+          >
+            <ChevronRight size={16} aria-hidden="true" />
+          </button>
+        </div>
+      )}
     </section>
   );
 }
@@ -134,7 +193,32 @@ function PositionsTable({ rows }: { rows: PositionRow[] }) {
   );
 }
 
-function OrdersTable({ rows }: { rows: OpenOrderRow[] }) {
+function OrdersTable({
+  rows,
+  onCancel,
+}: {
+  rows: OpenOrderRow[];
+  onCancel?: (orderId: string) => Promise<boolean>;
+}) {
+  // Single-flight cancel: `cancelling` holds the in-progress order id (disables
+  // its button), `failed` the id whose cancel errored (button offers a retry),
+  // `confirmOrder` the row awaiting confirmation in the dialog.
+  const [cancelling, setCancelling] = useState<string | null>(null);
+  const [failed, setFailed] = useState<string | null>(null);
+  const [confirmOrder, setConfirmOrder] = useState<OpenOrderRow | null>(null);
+
+  async function runCancel(id: string) {
+    if (!onCancel || cancelling) return;
+    setCancelling(id);
+    setFailed(null);
+    const ok = await onCancel(id);
+    // On success the row unmounts (parent drops it); either way close the
+    // dialog and clear busy. Failure re-labels the button to "Retry".
+    if (!ok) setFailed(id);
+    setCancelling(null);
+    setConfirmOrder(null);
+  }
+
   if (rows.length === 0) {
     return (
       <p className="py-10 text-center font-mono text-[11px] uppercase tracking-[0.24em] text-muted/70">
@@ -143,6 +227,7 @@ function OrdersTable({ rows }: { rows: OpenOrderRow[] }) {
     );
   }
   return (
+    <>
     <div className="overflow-x-auto">
       <table className="w-full text-left border-t border-line/50">
         <thead>
@@ -181,10 +266,15 @@ function OrdersTable({ rows }: { rows: OpenOrderRow[] }) {
                 <td className="px-5 py-2.5 text-right">
                   <button
                     type="button"
-                    title="Coming soon"
-                    className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted/60 hover:text-no transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 rounded"
+                    onClick={() => setConfirmOrder(r)}
+                    disabled={!onCancel || cancelling === r.id}
+                    className="font-mono text-[10px] uppercase tracking-[0.14em] text-no hover:brightness-125 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 rounded disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                   >
-                    Cancel
+                    {cancelling === r.id
+                      ? "Cancelling…"
+                      : failed === r.id
+                        ? "Retry"
+                        : "Cancel"}
                   </button>
                 </td>
               </tr>
@@ -193,6 +283,45 @@ function OrdersTable({ rows }: { rows: OpenOrderRow[] }) {
         </tbody>
       </table>
     </div>
+
+      <ConfirmDialog
+        open={confirmOrder !== null}
+        busy={confirmOrder !== null && cancelling === confirmOrder.id}
+        title="Cancel order?"
+        confirmLabel="Cancel order"
+        cancelLabel="Keep order"
+        busyLabel="Cancelling…"
+        onClose={() => {
+          if (!cancelling) setConfirmOrder(null);
+        }}
+        onConfirm={() => confirmOrder && runCancel(confirmOrder.id)}
+        message={
+          confirmOrder && (
+            <>
+              <span
+                className={confirmOrder.side === "BUY" ? "text-yes" : "text-no"}
+              >
+                {confirmOrder.side}
+              </span>{" "}
+              <span className="tabular-nums text-fg">
+                {confirmOrder.shares.toLocaleString("en-US")}
+              </span>{" "}
+              sh @{" "}
+              <span className="tabular-nums text-fg">
+                {confirmOrder.priceCents}¢
+              </span>
+              <br />
+              <span className="text-fg/80">{confirmOrder.market}</span> ·{" "}
+              {confirmOrder.outcome}
+              <br />
+              <br />
+              This removes the resting order and returns any locked funds to your
+              available balance.
+            </>
+          )
+        }
+      />
+    </>
   );
 }
 

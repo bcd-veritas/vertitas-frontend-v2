@@ -71,15 +71,6 @@ export function HeroValue({
           <CountUp value={Math.abs(pnlCents) / 100} prefix="$" decimals={2} /> ({sign}
           <CountUp value={Math.abs(pnlPct)} decimals={1} suffix="%" />) ALL TIME
         </p>
-
-        {/* Reference's "BEGIN ANALYSIS ↗" — ours is the inert Deposit CTA. */}
-        <button
-          type="button"
-          title="Coming soon"
-          className="mt-6 inline-flex items-center gap-1.5 font-mono text-[12px] font-semibold uppercase tracking-[0.14em] text-fg border-b border-fg/70 pb-0.5 hover:text-accent hover:border-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
-        >
-          Deposit <ArrowUpRight size={13} aria-hidden="true" />
-        </button>
       </div>
     </section>
   );

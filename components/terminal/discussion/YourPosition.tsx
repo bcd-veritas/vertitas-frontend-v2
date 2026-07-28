@@ -14,6 +14,7 @@ import {
 } from "@/lib/profile/data";
 import { centsLabel, sharesLabel } from "@/lib/markets/format";
 import { useUserRoom } from "@/lib/realtime/hooks";
+import { ConfirmDialog } from "../../common/ConfirmDialog";
 import { EmptyState, OutcomeChip, SectionLabel, SideBadge } from "./atoms";
 
 /** The connected wallet's stake in THIS market: holdings per outcome + resting
@@ -31,6 +32,7 @@ export function YourPosition({
   const [orders, setOrders] = useState<UserMarketOrder[] | null>(null);
   const [resolution, setResolution] = useState<MarketResolution | null>(null);
   const [cancelling, setCancelling] = useState<string | null>(null);
+  const [confirmOrder, setConfirmOrder] = useState<UserMarketOrder | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -69,6 +71,7 @@ export function YourPosition({
     setCancelling(id);
     const ok = await cancelUserOrder(id, address);
     setCancelling(null);
+    setConfirmOrder(null);
     if (!ok) return;
     setOrders((prev) => (prev ? prev.filter((o) => o.id !== id) : prev));
     // Cancelling an ASK returns shares to the position — refresh holdings.
@@ -147,7 +150,7 @@ export function YourPosition({
               </p>
               <button
                 type="button"
-                onClick={() => handleCancel(o.id)}
+                onClick={() => setConfirmOrder(o)}
                 disabled={cancelling === o.id}
                 className="font-mono text-[10px] uppercase tracking-[0.1em] text-no/80 hover:text-no disabled:opacity-40 transition-colors shrink-0"
               >
@@ -157,6 +160,42 @@ export function YourPosition({
           ))}
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmOrder !== null}
+        busy={confirmOrder !== null && cancelling === confirmOrder.id}
+        title="Cancel order?"
+        confirmLabel="Cancel order"
+        cancelLabel="Keep order"
+        busyLabel="Cancelling…"
+        onClose={() => {
+          if (!cancelling) setConfirmOrder(null);
+        }}
+        onConfirm={() => confirmOrder && handleCancel(confirmOrder.id)}
+        message={
+          confirmOrder && (
+            <>
+              <span
+                className={confirmOrder.side === "BID" ? "text-yes" : "text-no"}
+              >
+                {confirmOrder.side === "BID" ? "BUY" : "SELL"}
+              </span>{" "}
+              <span className="tabular-nums text-fg">
+                {sharesLabel(confirmOrder.remaining)}
+              </span>{" "}
+              sh @{" "}
+              <span className="tabular-nums text-fg">
+                {centsLabel(confirmOrder.price)}
+              </span>{" "}
+              · {labelFor(confirmOrder.outcomeIndex)}
+              <br />
+              <br />
+              This removes the resting order and returns any locked funds to your
+              available balance.
+            </>
+          )
+        }
+      />
     </div>
   );
 }

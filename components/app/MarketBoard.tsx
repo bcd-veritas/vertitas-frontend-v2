@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import type { ApiMarket } from "@/lib/markets/types";
@@ -19,6 +19,9 @@ const SORTS: { id: Sort; label: string }[] = [
 ];
 
 const statusRank = (m: ApiMarket) => (m.status === "ACTIVE" ? 0 : 1);
+
+/** Cards revealed per infinite-scroll step (and the initial window). */
+const MARKETS_BATCH = 12;
 
 const CATEGORY_COLORS: Record<string, { text: string; inactive: string; bg: string }> = {
   "all": { text: "text-accent", inactive: "text-accent/40 hover:text-accent", bg: "bg-accent" },
@@ -92,6 +95,40 @@ export function MarketBoard({
       }
     });
   }, [boardMarkets, search, sort]);
+
+  // Infinite scroll — reveal the client-filtered list in batches instead of
+  // rendering every card at once. Search / sort / category stay client-side, so
+  // we grow a slice of `filtered` rather than fetching pages; any filter change
+  // resets the window to the first batch.
+  const [visibleCount, setVisibleCount] = useState(MARKETS_BATCH);
+  const filterKey = `${category}|${sort}|${search}`;
+  const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
+  if (filterKey !== prevFilterKey) {
+    setPrevFilterKey(filterKey);
+    setVisibleCount(MARKETS_BATCH);
+  }
+  const visible = filtered.slice(0, visibleCount);
+  const hasMore = visibleCount < filtered.length;
+
+  // A sentinel below the grid bumps the window when scrolled near; rootMargin
+  // pre-loads the next batch before it reaches the viewport. Re-armed whenever
+  // the match count changes so the closure's length stays current.
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!hasMore) return;
+    const el = sentinelRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setVisibleCount((c) => Math.min(c + MARKETS_BATCH, filtered.length));
+        }
+      },
+      { rootMargin: "600px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [hasMore, filtered.length]);
 
   // One-time entrance stagger (not on re-filter).
   useGSAP(() => {
@@ -185,9 +222,20 @@ export function MarketBoard({
           className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 transition-opacity ${loading ? "opacity-40 pointer-events-none" : "opacity-100"
             }`}
         >
-          {filtered.map((m) => (
+          {visible.map((m) => (
             <MarketCard key={m.id} market={m} />
           ))}
+        </div>
+      )}
+
+      {/* Infinite-scroll sentinel — pulses while more cards remain to reveal. */}
+      {!loading && hasMore && (
+        <div ref={sentinelRef} className="flex justify-center py-10" aria-hidden="true">
+          <span className="flex gap-1.5">
+            <span className="h-1.5 w-1.5 rounded-full bg-accent/60 animate-pulse" />
+            <span className="h-1.5 w-1.5 rounded-full bg-accent/60 animate-pulse [animation-delay:150ms]" />
+            <span className="h-1.5 w-1.5 rounded-full bg-accent/60 animate-pulse [animation-delay:300ms]" />
+          </span>
         </div>
       )}
     </main>
