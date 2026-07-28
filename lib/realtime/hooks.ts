@@ -79,6 +79,8 @@ export function useMarketRoom(
   handlers: {
     onUpdate?: (p?: { kind?: string }) => void;
     onResolved?: (p: { marketId: string; winningOutcome: number }) => void;
+    /** Lifecycle status flip other than RESOLVED (today ACTIVE→ENDED). */
+    onStatus?: (p: { marketId: string; status: string }) => void;
   },
 ) {
   const saved = useLatest(handlers);
@@ -90,6 +92,8 @@ export function useMarketRoom(
     const onUpdate = (p?: { kind?: string }) => saved.current.onUpdate?.(p);
     const onResolved = (p: { marketId: string; winningOutcome: number }) =>
       saved.current.onResolved?.(p);
+    const onStatus = (p: { marketId: string; status: string }) =>
+      saved.current.onStatus?.(p);
     // (Re)join on every connection: socket.io does not restore room
     // membership after an auto-reconnect, so a bare one-shot subscribe goes
     // silently stale on the first network blip. resub() also doubles as a
@@ -102,11 +106,13 @@ export function useMarketRoom(
     resub();
     s.on("connect", resub);
     s.on("market:update", onUpdate);
+    s.on("market:status", onStatus);
     s.on("market:resolved", onResolved);
     return () => {
       s.off("connect", resub);
       if (releaseRoom(key)) s.emit("market:unsubscribe", marketId);
       s.off("market:update", onUpdate);
+      s.off("market:status", onStatus);
       s.off("market:resolved", onResolved);
     };
   }, [marketId, saved]);

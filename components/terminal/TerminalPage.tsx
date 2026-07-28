@@ -98,6 +98,12 @@ export function TerminalPage({
       refetchSeries();
       setFeedNonce((n) => n + 1);
     },
+    // ACTIVE→ENDED ("resolving") arrives here so the rail swaps TradePanel for
+    // ResolutionPanel's "determining winner" state live — no refresh. RESOLVED
+    // keeps its own richer event below.
+    onStatus: (p) => {
+      if (p.status === "ENDED" || p.status === "RESOLVED") setLiveStatus(p.status);
+    },
     onResolved: () => setLiveStatus("RESOLVED"),
   });
 

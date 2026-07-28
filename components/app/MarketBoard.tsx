@@ -3,25 +3,30 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
+import { useAccount } from "wagmi";
 import type { ApiMarket } from "@/lib/markets/types";
 import { getMarkets } from "@/lib/markets/data";
+import { getUnredeemedMarketIds } from "@/lib/profile/data";
 import { MarketCard } from "./MarketCard";
+import { FilterDropdown } from "./FilterDropdown";
 import { MonoLabel } from "../landing/ui/MonoLabel";
 import { PixelHeading } from "../landing/ui/PixelHeading";
 
 gsap.registerPlugin(useGSAP);
 
-type StatusFilter = "all" | "active" | "resolving" | "resolved";
+type StatusFilter = "all" | "active" | "resolving" | "resolved" | "unredeemed";
 const STATUS_FILTERS: { id: StatusFilter; label: string }[] = [
   { id: "all", label: "All" },
   { id: "active", label: "Active" },
   { id: "resolving", label: "Resolving" },
   { id: "resolved", label: "Resolved" },
+  { id: "unredeemed", label: "Unredeemed" },
 ];
 /** Filter id → the market status it matches (ENDED = resolving, awaiting the
- *  oracle outcome). "all" applies no status filter. */
+ *  oracle outcome). "all" and "unredeemed" are handled separately, not by a
+ *  plain status equality. */
 const STATUS_MATCH: Record<
-  Exclude<StatusFilter, "all">,
+  Exclude<StatusFilter, "all" | "unredeemed">,
   ApiMarket["status"]
 > = {
   active: "ACTIVE",
@@ -58,8 +63,29 @@ export function MarketBoard({
   search: string;
   onResetSearch: () => void;
 }) {
+  const { address, isConnected } = useAccount();
   const [category, setCategory] = useState<string>("All");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  // Market ids with unredeemed winnings for the connected wallet — null while
+  // unloaded/not-applicable, a Set once fetched. Only fetched when the
+  // "Unredeemed" filter is active (it's wallet-specific, unlike the others).
+  const [unredeemedIds, setUnredeemedIds] = useState<Set<string> | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    if (statusFilter !== "unredeemed" || !address) {
+      Promise.resolve().then(() => alive && setUnredeemedIds(null));
+      return () => {
+        alive = false;
+      };
+    }
+    getUnredeemedMarketIds(address).then(
+      (ids) => alive && setUnredeemedIds(new Set(ids)),
+    );
+    return () => {
+      alive = false;
+    };
+  }, [statusFilter, address]);
   const [boardMarkets, setBoardMarkets] = useState<ApiMarket[]>(markets);
   const [loading, setLoading] = useState(false);
   const gridRef = useRef<HTMLDivElement>(null);
@@ -95,6 +121,10 @@ export function MarketBoard({
       list = list.filter(
         (m) => m.status === "ACTIVE" || m.status === "ENDED",
       );
+    } else if (statusFilter === "unredeemed") {
+      // Wallet-specific: keep only markets the backend flagged as having
+      // unredeemed winnings. Null = not loaded yet / no wallet → show nothing.
+      list = unredeemedIds ? list.filter((m) => unredeemedIds.has(m.id)) : [];
     } else {
       const target = STATUS_MATCH[statusFilter];
       list = list.filter((m) => m.status === target);
@@ -109,7 +139,7 @@ export function MarketBoard({
       const d = BigInt(b.volume) - BigInt(a.volume);
       return d > 0n ? 1 : d < 0n ? -1 : 0;
     });
-  }, [boardMarkets, search, statusFilter]);
+  }, [boardMarkets, search, statusFilter, unredeemedIds]);
 
   // Infinite scroll — reveal the client-filtered list in batches instead of
   // rendering every card at once. Search / sort / category stay client-side, so
@@ -164,6 +194,12 @@ export function MarketBoard({
     onResetSearch();
   };
 
+  // "Unredeemed" is still resolving its wallet-scoped id set; treat like a load
+  // so the board shows the loading state rather than a premature "none".
+  const unredeemedLoading =
+    statusFilter === "unredeemed" && isConnected && unredeemedIds === null;
+  const busy = loading || unredeemedLoading;
+
   return (
     <main className="mx-auto max-w-7xl px-3 sm:px-4 py-8 w-full flex-1">
       {/* Section header — names the board so it reads as its own section. */}
@@ -198,36 +234,35 @@ export function MarketBoard({
           })}
         </div>
 
-        <div className="ml-auto flex items-center gap-1 pb-2">
-          <MonoLabel className="mr-2 hidden sm:inline">status //</MonoLabel>
-          {STATUS_FILTERS.map(({ id, label }) => {
-            const on = statusFilter === id;
-            return (
-              <button
-                key={id}
-                onClick={() => setStatusFilter(id)}
-                aria-pressed={on}
-                className={`px-2.5 py-1 rounded-md border font-mono text-[11px] uppercase tracking-[0.14em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${on ? "bg-accent text-bg border-accent font-semibold" : "border-fg/20 bg-fg/[0.04] text-muted hover:text-fg/90 hover:border-fg/45 hover:bg-fg/8"
-                  }`}
-              >
-                {label}
-              </button>
-            );
-          })}
+        <div className="ml-auto flex items-center pb-2">
+          <FilterDropdown
+            label="show //"
+            value={statusFilter}
+            options={STATUS_FILTERS}
+            onChange={setStatusFilter}
+          />
         </div>
       </div>
 
       {/* Count */}
       <MonoLabel className="block mb-5">
-        {loading
+        {busy
           ? "loading //"
           : `${filtered.length} market${filtered.length === 1 ? "" : "s"} // ${statusFilter === "all" ? "shown" : statusFilter}`}
       </MonoLabel>
 
-      {!loading && filtered.length === 0 ? (
+      {!busy && filtered.length === 0 ? (
         <div className="border border-line rounded-xl py-24 flex flex-col items-center gap-4 text-center">
-          <PixelHeading className="text-3xl">No markets found</PixelHeading>
-          <MonoLabel>try another category or search term</MonoLabel>
+          <PixelHeading className="text-3xl">
+            {statusFilter === "unredeemed" ? "Nothing to redeem" : "No markets found"}
+          </PixelHeading>
+          <MonoLabel>
+            {statusFilter === "unredeemed"
+              ? isConnected
+                ? "you've claimed all your winnings"
+                : "connect your wallet to see unredeemed winnings"
+              : "try another category or search term"}
+          </MonoLabel>
           <button onClick={reset} className="pill pill-ghost mt-2 text-sm">
             Reset filters
           </button>
@@ -235,7 +270,7 @@ export function MarketBoard({
       ) : (
         <div
           ref={gridRef}
-          className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 transition-opacity ${loading ? "opacity-40 pointer-events-none" : "opacity-100"
+          className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 transition-opacity ${busy ? "opacity-40 pointer-events-none" : "opacity-100"
             }`}
         >
           {visible.map((m) => (
@@ -245,7 +280,7 @@ export function MarketBoard({
       )}
 
       {/* Infinite-scroll sentinel — pulses while more cards remain to reveal. */}
-      {!loading && hasMore && (
+      {!busy && hasMore && (
         <div ref={sentinelRef} className="flex justify-center py-10" aria-hidden="true">
           <span className="flex gap-1.5">
             <span className="h-1.5 w-1.5 rounded-full bg-accent/60 animate-pulse" />

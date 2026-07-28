@@ -475,6 +475,20 @@ export async function getVolumeTraded(wallet: string): Promise<number> {
   }
 }
 
+/** Market ids where the wallet still has unredeemed winnings (resolved market,
+ *  winning outcome, shares not yet claimed). Empty array on any failure — the
+ *  markets filter then simply shows nothing rather than erroring. */
+export async function getUnredeemedMarketIds(wallet: string): Promise<string[]> {
+  try {
+    const res = await fetch(`${API}/profiles/${wallet}/unredeemed`);
+    if (!res.ok) return [];
+    const data = (await res.json()) as { marketIds?: string[] };
+    return data.marketIds ?? [];
+  } catch {
+    return [];
+  }
+}
+
 /** Share of resolved markets the wallet held the winning outcome in, as a
  *  0–100 percentage (API returns a 0–1 fraction). 0 on any failure. */
 export async function getWinRate(wallet: string): Promise<number> {
