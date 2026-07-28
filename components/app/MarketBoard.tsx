@@ -89,7 +89,13 @@ export function MarketBoard({
 
   const filtered = useMemo(() => {
     let list = boardMarkets.filter((m) => !m.isFeatured);
-    if (statusFilter !== "all") {
+    if (statusFilter === "all") {
+      // "All" = still in play: active + resolving. Resolved/cancelled markets
+      // only surface under their own explicit filter.
+      list = list.filter(
+        (m) => m.status === "ACTIVE" || m.status === "ENDED",
+      );
+    } else {
       const target = STATUS_MATCH[statusFilter];
       list = list.filter((m) => m.status === target);
     }
