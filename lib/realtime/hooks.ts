@@ -118,12 +118,26 @@ export function useMarketRoom(
   }, [marketId, saved]);
 }
 
-/** Join the connected wallet's room; fire when balances/positions change. */
+/** Rich payload for a passive fill of the wallet's resting order — drives the
+ *  "someone matched your order" toast. Mirrors the middleware's OrderMatchedPayload. */
+export type OrderMatchedPayload = {
+  marketId: string;
+  marketTitle: string;
+  outcomeLabel: string;
+  side: "BUY" | "SELL";
+  shares: number;
+  priceCents: number;
+};
+
+/** Join the connected wallet's room; fire when balances/positions change, and
+ *  (optionally) when one of the wallet's resting orders is matched by a taker. */
 export function useUserRoom(
   walletAddress: string | null | undefined,
   onUpdate: () => void,
+  onMatched?: (p: OrderMatchedPayload) => void,
 ) {
   const saved = useLatest(onUpdate);
+  const savedMatched = useLatest(onMatched);
   useEffect(() => {
     const s = getSocket();
     if (!s || !walletAddress) return;
@@ -131,6 +145,7 @@ export function useUserRoom(
     const key = "user:" + wallet;
     acquireRoom(key);
     const handler = () => saved.current();
+    const matched = (p: OrderMatchedPayload) => savedMatched.current?.(p);
     // (Re)join on every connection: socket.io does not restore room
     // membership after an auto-reconnect, so a bare one-shot subscribe goes
     // silently stale on the first network blip. resub() also doubles as a
@@ -141,10 +156,12 @@ export function useUserRoom(
     resub();
     s.on("connect", resub);
     s.on("user:update", handler);
+    s.on("order:matched", matched);
     return () => {
       s.off("connect", resub);
       if (releaseRoom(key)) s.emit("user:unsubscribe", wallet);
       s.off("user:update", handler);
+      s.off("order:matched", matched);
     };
-  }, [walletAddress, saved]);
+  }, [walletAddress, saved, savedMatched]);
 }

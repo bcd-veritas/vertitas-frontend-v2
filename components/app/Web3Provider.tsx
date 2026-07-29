@@ -8,6 +8,8 @@ import { wagmiConfig } from "@/lib/wagmi/config";
 import { ensureAccount, getUserIdentity } from "@/lib/profile/data";
 import { useDepositState } from "@/lib/deposit/useDepositState";
 import { OnboardingFlow } from "@/components/onboarding/OnboardingFlow";
+import { ToastProvider } from "@/components/toast/ToastProvider";
+import { OrderMatchToaster } from "@/components/toast/OrderMatchToaster";
 import "@rainbow-me/rainbowkit/styles.css";
 
 const queryClient = new QueryClient();
@@ -73,9 +75,12 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>
         <RainbowKitProvider theme={theme}>
-          <AccountSync />
-          <OnboardingGate />
-          {children}
+          <ToastProvider>
+            <AccountSync />
+            <OnboardingGate />
+            <OrderMatchToaster />
+            {children}
+          </ToastProvider>
         </RainbowKitProvider>
       </QueryClientProvider>
     </WagmiProvider>
