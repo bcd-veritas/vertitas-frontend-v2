@@ -265,11 +265,14 @@ function CreateMarketProgressModal({
   phase,
   activeIndex,
   message,
+  summary,
   onClose,
 }: {
   phase: StepPhase;
   activeIndex: number;
   message: string | null;
+  /** Rendered under the steps on success — a recap of the created market. */
+  summary?: ReactNode;
   onClose: () => void;
 }) {
   if (phase == null) return null;
@@ -356,6 +359,15 @@ function CreateMarketProgressModal({
           </p>
         )}
 
+        {done && summary && (
+          <div className="mt-4 border-t border-line/60 pt-4">
+            <p className="mb-2.5 text-[10px] uppercase tracking-[0.16em] text-muted/60">
+              summary
+            </p>
+            {summary}
+          </div>
+        )}
+
         {(done || failed) && (
           <div className="mt-5 flex justify-end">
             <button
@@ -399,6 +411,65 @@ export function CreateMarketForm() {
   const noCents = 100 - yesCents;
 
   const chainlink = isChainlink(f.resolverType);
+
+  const created =
+    result?.ok && result.data && typeof result.data === "object"
+      ? (result.data as { marketId?: string; marketAddress?: string })
+      : null;
+  const shortHex = (h?: string) =>
+    h ? `${h.slice(0, 6)}…${h.slice(-4)}` : "—";
+
+  // Success closes the flow AND clears the form (a fresh market next time);
+  // an error leaves the form intact so the operator can fix and retry.
+  const closeStepModal = () => {
+    const wasSuccess = result?.ok === true;
+    setStepPhase(null);
+    if (wasSuccess) {
+      setF(INITIAL);
+      setErrors({});
+      setPayload(null);
+      setResult(null);
+      setStepIndex(0);
+    }
+  };
+
+  const successSummary = result?.ok ? (
+    <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-[12px]">
+      <dt className="text-muted/70">Title</dt>
+      <dd className="truncate text-right text-fg">{f.title || "—"}</dd>
+      <dt className="text-muted/70">Outcomes</dt>
+      <dd className="text-right">
+        <span className="text-yes">Yes {yesCents}¢</span>{" "}
+        <span className="text-muted/40">·</span>{" "}
+        <span className="text-no">No {noCents}¢</span>
+      </dd>
+      <dt className="text-muted/70">Closes</dt>
+      <dd className="text-right text-fg">
+        {f.closesAt ? f.closesAt.replace("T", " ") : "—"}
+      </dd>
+      <dt className="text-muted/70">Resolver</dt>
+      <dd className="text-right text-fg">{f.resolverType}</dd>
+      <dt className="text-muted/70">Seed</dt>
+      <dd className="text-right text-fg">{f.shares || "—"} sh / side</dd>
+      {created?.marketId ? (
+        <>
+          <dt className="text-muted/70">Market</dt>
+          <dd className="text-right">
+            <a
+              href={`/markets/${created.marketId}`}
+              className="text-accent underline underline-offset-2 hover:brightness-110"
+            >
+              view ↗
+            </a>
+          </dd>
+        </>
+      ) : null}
+      <dt className="text-muted/70">On-chain</dt>
+      <dd className="text-right font-mono text-fg/70">
+        {shortHex(created?.marketAddress)}
+      </dd>
+    </dl>
+  ) : null;
 
   const onSubmit = async (ev: React.FormEvent) => {
     ev.preventDefault();
@@ -519,6 +590,7 @@ export function CreateMarketForm() {
         <Field label="Closes at" required error={err("closesAt")} hint="When trading ends and the market can resolve">
           <TextInput
             type="datetime-local"
+            className="date-input"
             value={f.closesAt}
             onChange={(e) => set("closesAt", e.target.value)}
           />
@@ -676,12 +748,26 @@ export function CreateMarketForm() {
           ) : null}
 
           {f.resolverType === "UMA" ? (
-            <div className="border-l-2 border-accent/40 pl-3">
+            <div className="flex flex-col gap-4 border-l-2 border-accent/40 pl-3">
               <Field label="Question / ancillary data" required error={err("umaQuestion")} hint="The optimistic-oracle question text">
                 <TextArea
                   value={f.umaQuestion}
                   onChange={(e) => set("umaQuestion", e.target.value)}
                   placeholder="Did BTC close above $120,000 on the deadline per…?"
+                />
+              </Field>
+              <Field
+                label="Resolution reward (VTK)"
+                required
+                error={err("resolutionReward")}
+                hint="Paid to the winning UMA proposer; pulled from the Treasury at creation"
+              >
+                <TextInput
+                  type="number"
+                  min={1}
+                  value={f.resolutionReward}
+                  onChange={(e) => set("resolutionReward", e.target.value)}
+                  placeholder="100"
                 />
               </Field>
             </div>
@@ -691,7 +777,7 @@ export function CreateMarketForm() {
 
       {/* 7. Advanced */}
       <div className="reveal-rise" style={{ animationDelay: "360ms" }}>
-        <details className="group border border-line bg-surface/40">
+        <details open className="group border border-line bg-surface/40">
           <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 font-mono text-[11px] uppercase tracking-[0.15em] text-muted">
             Advanced (economics)
             <span className="text-muted/50 transition-transform group-open:rotate-90">›</span>
@@ -703,20 +789,6 @@ export function CreateMarketForm() {
             <Field label="Fee (bps)" hint="100 bps = 1%">
               <TextInput type="number" min={0} value={f.feeBps} onChange={(e) => set("feeBps", e.target.value)} />
             </Field>
-            {f.resolverType === "UMA" ? (
-              <Field
-                label="Resolution reward (VTK)"
-                required
-                error={err("resolutionReward")}
-                hint="Paid to the winning UMA proposer; pulled from the Treasury at creation"
-              >
-                <TextInput type="number" min={1} value={f.resolutionReward} onChange={(e) => set("resolutionReward", e.target.value)} placeholder="100" />
-              </Field>
-            ) : (
-              <p className="self-end pb-2 font-mono text-[10px] leading-relaxed text-muted/60 sm:col-span-1">
-                Resolution reward: UMA only — admin/Chainlink resolvers never pay it out.
-              </p>
-            )}
           </div>
         </details>
       </div>
@@ -780,7 +852,8 @@ export function CreateMarketForm() {
         phase={stepPhase}
         activeIndex={stepIndex}
         message={result && !result.ok ? result.message : null}
-        onClose={() => setStepPhase(null)}
+        summary={successSummary}
+        onClose={closeStepModal}
       />
     </form>
   );

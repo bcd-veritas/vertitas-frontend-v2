@@ -22,16 +22,30 @@ function statusWord(status: ApiMarket["status"]): string {
   }
 }
 
-/** Footer tint: resolving stays accent-tinted (in progress), resolved/cancelled
- *  read as muted/negative. */
+/** Footer tint: resolving reads amber (in progress), cancelled negative,
+ *  resolved muted. */
 function statusTone(status: ApiMarket["status"]): string {
   switch (status) {
     case "ENDED":
-      return "text-accent/80";
+      return "text-amber-300";
     case "CANCELLED":
       return "text-no/70";
     default:
       return "text-muted";
+  }
+}
+
+/** Card chrome per status. Resolving gets an amber tint and only a light dim so
+ *  it stands out from the fully-greyed resolved/cancelled cards; live cards keep
+ *  the accent hover. */
+function cardTone(status: ApiMarket["status"]): string {
+  switch (status) {
+    case "ACTIVE":
+      return "border-line hover:border-accent/60 hover:bg-surface";
+    case "ENDED":
+      return "border-amber-400/40 opacity-90 hover:border-amber-400/70 hover:bg-surface";
+    default:
+      return "border-line opacity-60 saturate-50";
   }
 }
 
@@ -143,8 +157,7 @@ export function MarketCard({
 
   return (
     <article
-      className={`market-card group relative flex flex-col bg-surface/70 border border-line rounded-xl overflow-hidden transition-colors cursor-pointer hover:border-accent/60 hover:bg-surface ${live ? "" : "opacity-60 saturate-50"
-        }`}
+      className={`market-card group relative flex flex-col bg-surface/70 border rounded-xl overflow-hidden transition-colors cursor-pointer ${cardTone(market.status)}`}
     >
       {/* Probability rail — split at the leading outcome's share of the top-2 */}
       <div

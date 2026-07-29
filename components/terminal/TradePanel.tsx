@@ -21,6 +21,7 @@ import { useOracleRole } from "@/lib/uma/useOracleRole";
 import { useUserRoom } from "@/lib/realtime/hooks";
 import { RollingNumber } from "../profile/RollingNumber";
 import { Frame } from "./Frame";
+import { OrderReceipt, type Receipt } from "./OrderReceipt";
 import type { TradeSelection } from "./OutcomesPanel";
 
 type Mode = "MARKET" | "LIMIT";
@@ -110,6 +111,9 @@ export function TradePanel({
   const [limitShares, setLimitShares] = useState("");
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState<string | null>(null);
+  // Confirmation shown over the ticket after a placed order (null = show the
+  // ticket). Captured at submit time so clearing the inputs doesn't wipe it.
+  const [receipt, setReceipt] = useState<Receipt | null>(null);
   const resetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // React-sanctioned "adjust state during render" — reset stale error/done
@@ -125,6 +129,7 @@ export function TradePanel({
     if (phase === "error" || phase === "done") {
       setPhase("idle");
       setError(null);
+      setReceipt(null);
     }
   }
 
@@ -293,11 +298,46 @@ export function TradePanel({
       const signature = await signTypedDataAsync(typed);
       if (submitEnabled) {
         setPhase("submitting");
-        await submitSignedOrder(wire, signature);
+        const result = await submitSignedOrder(wire, signature);
+        // Outcome-aware receipt from the intended order vs what filled. A MARKET
+        // remainder is cancelled; a LIMIT remainder rests on the book.
+        const filledShares = result.filledShares;
+        const intended = est.shares;
+        const resting = Math.max(0, intended - filledShares);
+        const kind: Receipt["kind"] =
+          filledShares >= intended - 1e-9
+            ? "filled"
+            : filledShares > 1e-9
+              ? "partial"
+              : "resting";
+        const limitPrice = Number(limitCents) || est.avg;
+        // $ shown: filled portion's cost for filled/partial, locked notional
+        // for a resting order.
+        const amountDollars =
+          kind === "resting"
+            ? (resting * limitPrice) / 100
+            : (filledShares * est.avg) / 100;
+        setReceipt({
+          kind,
+          action,
+          label: tradedOutcome?.label ?? outcome?.label ?? "",
+          intendedShares: intended,
+          filledShares,
+          restingShares: resting,
+          avgCents: est.avg,
+          amountDollars,
+          limitCents: limitPrice,
+          isLimit: mode === "LIMIT",
+        });
       }
       setPhase("done");
       if (resetTimeoutRef.current) clearTimeout(resetTimeoutRef.current);
-      resetTimeoutRef.current = setTimeout(() => setPhase("idle"), 2500);
+      // With a receipt, OrderReceipt owns its own hold + exit animation and
+      // calls onDismiss when done. Without one (submit kill-switch), reset the
+      // "order signed" button here after a beat.
+      if (!submitEnabled) {
+        resetTimeoutRef.current = setTimeout(() => setPhase("idle"), 2000);
+      }
       setAmount("");
       setLimitShares("");
       // Our own order just moved balance/shares — refresh preflight without
@@ -338,7 +378,13 @@ export function TradePanel({
           ? "SUBMITTING…"
           : phase === "done"
             ? submitEnabled
-              ? "ORDER PLACED"
+              ? receipt
+                ? receipt.kind === "filled"
+                  ? "✓ FILLED"
+                  : receipt.kind === "partial"
+                    ? "✓ PARTIAL FILL"
+                    : "✓ ON THE BOOK"
+                : "ORDER PLACED"
               : "ORDER SIGNED"
             : (binary
               ? `${action} ${side}`
@@ -358,6 +404,7 @@ export function TradePanel({
     if (phase === "error" || phase === "done") {
       setPhase("idle");
       setError(null);
+      setReceipt(null);
     }
   };
 
@@ -366,6 +413,7 @@ export function TradePanel({
     if (phase === "error" || phase === "done") {
       setPhase("idle");
       setError(null);
+      setReceipt(null);
     }
   };
 
@@ -404,6 +452,17 @@ export function TradePanel({
   const dimFlood = `color-mix(in srgb, ${flood} 45%, transparent)`;
   const busy = phase === "signing" || phase === "submitting";
 
+  // While the receipt is up, the whole frame takes the outcome's tint (green =
+  // filled, accent = partial/resting). Frame's border transitions, so it eases
+  // to the tint on confirm and back when the receipt clears.
+  const receiptActive = phase === "done" && receipt != null;
+  const receiptTint =
+    receipt?.kind === "filled" ? "var(--color-yes)" : "var(--color-accent)";
+  const frameTick = receiptActive ? receiptTint : flood;
+  const frameBorder = receiptActive
+    ? `color-mix(in srgb, ${receiptTint} 60%, transparent)`
+    : dimFlood;
+
   const modeTabs = (
     <div role="tablist" aria-label="Order type" className="flex items-center gap-1">
       {(["MARKET", "LIMIT"] as const).map((m) => {
@@ -428,8 +487,8 @@ export function TradePanel({
     <Frame
       label="TRADE"
       ariaLabel="Trade"
-      accent={dimFlood}
-      tickColor={flood}
+      accent={frameBorder}
+      tickColor={frameTick}
       right={modeTabs}
     >
       {/* Oracle participants (proposer / disputer / voter) are barred from
@@ -664,6 +723,19 @@ export function TradePanel({
           {"orders are eip-712 signed"}
         </p>
       </div>
+
+      {/* Confirmation — flips in over the whole ticket on a placed order, then
+          auto-reverts (3s) or on tap. */}
+      {phase === "done" && receipt && (
+        <OrderReceipt
+          receipt={receipt}
+          onDismiss={() => {
+            if (resetTimeoutRef.current) clearTimeout(resetTimeoutRef.current);
+            setReceipt(null);
+            setPhase("idle");
+          }}
+        />
+      )}
     </Frame>
   );
 }

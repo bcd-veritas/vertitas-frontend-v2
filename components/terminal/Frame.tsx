@@ -41,8 +41,12 @@ export function Frame({
       <span aria-hidden="true" className="absolute -bottom-px -left-px w-2.5 h-2.5 border-b-2 border-l-2 transition-colors duration-300" style={tickBase} />
       <span aria-hidden="true" className="absolute -bottom-px -right-px w-2.5 h-2.5 border-b-2 border-r-2 transition-colors duration-300" style={tickBase} />
 
-      {/* Label rule — pinned to the top border so caller padding can't push it */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 flex -translate-y-1/2 items-center justify-between gap-3 px-4">
+      {/* Label rule — pinned to the top border so caller padding can't push it.
+          z-[25] keeps the header (label + `right` slot) above a panel-body
+          overlay (e.g. the trade ticket's confirmation receipt, z-20) so it's
+          never cut across, while staying below a full veil like the oracle
+          block (z-30). */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-[25] flex -translate-y-1/2 items-center justify-between gap-3 px-4">
         <span
           className="pointer-events-auto bg-bg px-2 font-mono text-[15px] font-semibold uppercase tracking-[0.16em] transition-colors duration-300"
           style={{ color: tickColor ?? "var(--color-fg)" }}

@@ -11,6 +11,7 @@ import { getCollateralDollars } from "@/lib/profile/data";
 import { useUserRoom } from "@/lib/realtime/hooks";
 import { WalletButton } from "../deposit/WalletButton";
 import { EnableTradingButton } from "../deposit/EnableTradingButton";
+import { RollingNumber } from "../profile/RollingNumber";
 
 /** Off-chain ledger balances beside the profile pill — available (spendable)
  *  and locked (held by resting orders). These are the DB collateral columns,
@@ -44,25 +45,27 @@ function CollateralReadout() {
 
   if (!isConnected || !address || !collateral) return null;
 
-  const money = (n: number) =>
-    n.toLocaleString(undefined, {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
-
   return (
     <div className="hidden sm:flex items-center gap-3 shrink-0">
       <span className="flex flex-col items-end gap-0.5 leading-none">
         <MonoLabel className="text-[9px]! tracking-[0.16em]">Available</MonoLabel>
-        <span className="font-mono text-xs text-accent tabular-nums">
-          ${money(collateral.available)}
-        </span>
+        {/* RollingNumber animates the digits when a placed order (or any
+            balance change) shifts the ledger — the "money moved" cue. */}
+        <RollingNumber
+          value={collateral.available}
+          currency
+          decimals={2}
+          className="font-mono text-xs text-accent"
+        />
       </span>
       <span className="flex flex-col items-end gap-0.5 leading-none">
         <MonoLabel className="text-[9px]! tracking-[0.16em]">Locked</MonoLabel>
-        <span className="font-mono text-xs text-fg/60 tabular-nums">
-          ${money(collateral.locked)}
-        </span>
+        <RollingNumber
+          value={collateral.locked}
+          currency
+          decimals={2}
+          className="font-mono text-xs text-fg/60"
+        />
       </span>
       {/* One-time VTK→Exchange approval; self-hides once granted. */}
       <EnableTradingButton />
