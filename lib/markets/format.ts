@@ -61,6 +61,16 @@ export function formatVol(volume: string): string {
   return `$${dollars.toLocaleString("en-US")} VOL`;
 }
 
+/** Volume for dense lists — "$18.6M VOL", "$1.1K VOL", "$152 VOL".
+ *  formatVol prints the figure in full, which reads fine on a card but makes a
+ *  list column lurch between "$1 VOL" and "$18,587,500 VOL". */
+export function formatVolCompact(volume: string): string {
+  const dollars = Number(BigInt(volume) / 1_000_000n);
+  if (dollars >= 1_000_000) return `$${(dollars / 1_000_000).toFixed(1)}M VOL`;
+  if (dollars >= 1_000) return `$${(dollars / 1_000).toFixed(1)}K VOL`;
+  return `$${dollars} VOL`;
+}
+
 /** ISO -> "MAR 1 @ 11:00PM" (UTC, so SSR and client agree) */
 export function closesLabel(iso: string): string {
   const d = new Date(iso);
