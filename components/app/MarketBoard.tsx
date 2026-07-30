@@ -40,6 +40,20 @@ const statusRank = (m: ApiMarket) => (m.status === "ACTIVE" ? 0 : 1);
 /** Cards revealed per infinite-scroll step (and the initial window). */
 const MARKETS_BATCH = 12;
 
+/** Below this many results the first card stays a normal card — a hero needs a
+ *  field to lead, and at one or two results it is just a stretched card. */
+const ANCHOR_MIN_CARDS = 3;
+
+/** Below this many markets ON THE PLATFORM there is nothing worth exploring, so
+ *  the tunnel is not offered at all. Counted against the unfiltered list, not
+ *  the current view. */
+const TUNNEL_MIN_MARKETS = 6;
+
+/** Where the tunnel sits: its intended home is the third row's right-hand four
+ *  columns (after card index 5), but it falls back to the end of a shorter list
+ *  so it never depends on a row that was not rendered. */
+const TUNNEL_SLOT_INDEX = 5;
+
 const CATEGORY_COLORS: Record<string, { text: string; inactive: string; bg: string }> = {
   "all": { text: "text-accent", inactive: "text-accent/40 hover:text-accent", bg: "bg-accent" },
   "crypto": { text: "text-orange-400", inactive: "text-orange-400/40 hover:text-orange-400", bg: "bg-orange-400" },
@@ -165,6 +179,13 @@ export function MarketBoard({
   const visible = filtered.slice(0, visibleCount);
   const hasMore = visibleCount < filtered.length;
 
+  // -1 when the platform is too small to bother exploring, which also covers an
+  // empty result set (no card index can equal -1, so nothing renders).
+  const tunnelAfterIndex =
+    markets.length >= TUNNEL_MIN_MARKETS
+      ? Math.min(TUNNEL_SLOT_INDEX, visible.length - 1)
+      : -1;
+
   // A sentinel below the grid bumps the window when scrolled near; rootMargin
   // pre-loads the next batch before it reaches the viewport. Re-armed whenever
   // the match count changes so the closure's length stays current.
@@ -288,21 +309,34 @@ export function MarketBoard({
               is always the highest-volume live market — infinite scroll only
               appends later indices, so later batches can never become, or
               displace, the anchor. That keeps this safe under scroll: nothing
-              re-tiers or reflows a card the user has already seen. */}
+              re-tiers or reflows a card the user has already seen.
+              Suppressed below ANCHOR_MIN_CARDS: a hero card only means anything
+              when there is a field for it to lead. With one or two results it is
+              a stretched card with dead space beside it, paying for a detail
+              column to justify width it does not need. */}
           {visible.map((m, i) => (
             <Fragment key={m.id}>
-              <SplitCard market={m} wide={i === 0} />
-              {/* Gallery tunnel, third row, right-hand four columns. Row 1 is
-                  the anchor (4) plus one card (2); row 2 holds cards 2-4; so
-                  card 5 opens row 3 and this fills the rest of it. Desktop only
-                  — below lg the grid is 1-2 up and there are no rows to reserve
-                  within, and a WebGL canvas is the last thing to run on mobile.
-                  The inner absolute wrapper gives the canvas a definite box to
-                  measure: GalleryTunnel sizes itself at height:100%, which needs
-                  a resolved parent height rather than a stretched grid cell.
-                  aria-hidden while it is still decorative — that must come off
-                  when it becomes a real link to the explore page. */}
-              {i === 5 && (
+              <SplitCard
+                market={m}
+                wide={i === 0 && visible.length >= ANCHOR_MIN_CARDS}
+              />
+              {/* Gallery tunnel — the only entry point to /explore, so its
+                  presence is a decision, not a side effect of the grid. It is
+                  gated on how many markets EXIST (`markets`, the unfiltered prop
+                  from /home), never on how many the current filter returned:
+                  keying it to a fixed index meant a search narrowing to four
+                  results silently removed the link, which is precisely when a
+                  user wants to browse wider. Position still adapts, so it lands
+                  at the end of whatever is on screen rather than at a row that
+                  may not exist.
+                  Desktop only — below lg the grid is 1-2 up with no rows to
+                  reserve within, and a WebGL canvas is the last thing to run on
+                  mobile. The inner absolute wrapper gives the canvas a definite
+                  box to measure: GalleryTunnel sizes itself at height:100%,
+                  which needs a resolved parent height rather than a stretched
+                  grid cell. aria-hidden while decorative — that must come off
+                  when it becomes a real link. */}
+              {i === tunnelAfterIndex && (
                 <div
                   aria-hidden="true"
                   data-tunnel=""
