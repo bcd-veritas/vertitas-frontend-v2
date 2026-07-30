@@ -6,10 +6,10 @@ export function Topbar() {
       <span className="font-pixel text-xl tracking-widest text-fg">VERITAS</span>
       <a href="/home" className="pill pill-solid">Launch App</a>
       <button />
-      <span className="hidden sm:flex items-center gap-2">
+      {/* <span className="hidden sm:flex items-center gap-2">
         <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" aria-hidden="true" />
         <MonoLabel>markets.online // oracle.ready</MonoLabel>
-      </span>
+      </span> */}
     </header>
   );
 }

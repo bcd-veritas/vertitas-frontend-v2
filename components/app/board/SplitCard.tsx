@@ -7,6 +7,7 @@ import { closesLabel, countdownPair, formatVol, multiplier, oneDp } from "@/lib/
 import { splitSides, type SplitSide } from "./splitSides";
 import { CategoryIcon } from "../categoryIcon";
 import { PixelLabel } from "../PixelLabel";
+import { AnchorDetail } from "./AnchorDetail";
 
 /** Under this share a mass cannot hold a label plus a 2.9rem figure without
  *  clipping mid-digit, so it drops the label and shrinks. Fires often — 90/10
@@ -195,7 +196,13 @@ function ResolvingMass() {
   );
 }
 
-export function SplitCard({ market }: { market: ApiMarket }) {
+export function SplitCard({
+  market,
+  wide = false,
+}: {
+  market: ApiMarket;
+  wide?: boolean;
+}) {
   const live = market.status === "ACTIVE";
   const ended = market.status === "ENDED";
   const cancelled = market.status === "CANCELLED";
@@ -223,11 +230,64 @@ export function SplitCard({ market }: { market: ApiMarket }) {
     };
   }, [market.endTime]);
 
+  const caption = (
+    <div
+      className={`flex flex-1 flex-col gap-2.5 p-5 ${wide ? "border-b border-line lg:border-r lg:border-b-0" : ""}`}
+    >
+      <div className="flex min-w-0 items-center gap-1.5 pr-5">
+        <CategoryIcon category={market.category} />
+        <PixelLabel className="truncate text-[13px]! tracking-[0.14em]!">
+          {live
+            ? `mkt.${(market.category ?? "open").replace(/\s+/g, "")} // closes ${closesLabel(market.endTime)}`
+            : `mkt.${word} // ${market.category ?? "open"}`}
+        </PixelLabel>
+      </div>
+
+      <h3 className="font-pixel font-medium line-clamp-3 text-[1.4rem] leading-[1.02] tracking-[0.03em] text-fg uppercase">
+        <Link
+          href={href}
+          className="after:absolute after:inset-0 after:content-[''] focus-visible:outline-none"
+        >
+          {market.title}
+        </Link>
+      </h3>
+
+      {/* Screen readers get the odds as text; the masses are decorative. */}
+      <p className="sr-only">
+        {ended
+          ? "Market resolving — closed and awaiting the oracle outcome."
+          : cancelled
+            ? "Market cancelled — no payout."
+            : sides
+              ? sides
+                  .map(
+                    (s) =>
+                      `${s.label} ${oneDp(s.pct)} percent, pays ${multiplier(s.pct / 100)}`,
+                  )
+                  .join(", ")
+              : "No price yet."}
+      </p>
+
+      <div className="mt-auto flex items-baseline justify-between gap-3 pt-1">
+        <PixelLabel className="text-[13px]! tracking-[0.12em]! tabular-nums">
+          {formatVol(market.volume)}
+        </PixelLabel>
+        <PixelLabel
+          className={`text-[13px]! tracking-[0.12em]! tabular-nums ${
+            live ? "text-accent/80" : statusTone(market.status)
+          }`}
+        >
+          {live ? (clock ?? "—") : word.toUpperCase()}
+        </PixelLabel>
+      </div>
+    </div>
+  );
+
   return (
     <article
-      className={`market-card group relative flex flex-col overflow-hidden rounded-xl border bg-surface/[0.78] has-[a:focus-visible]:outline-2 has-[a:focus-visible]:outline-accent has-[a:focus-visible]:outline-offset-2 ${cardTone(
-        market.status,
-      )}`}
+      className={`market-card group relative flex flex-col overflow-hidden rounded-xl border bg-surface/[0.78] has-[a:focus-visible]:outline-2 has-[a:focus-visible]:outline-accent has-[a:focus-visible]:outline-offset-2 ${
+        wide ? "sm:col-span-2 lg:col-span-4" : "sm:col-span-1 lg:col-span-2"
+      } ${cardTone(market.status)}`}
     >
       <span
         aria-hidden="true"
@@ -261,54 +321,14 @@ export function SplitCard({ market }: { market: ApiMarket }) {
         )}
       </div>
 
-      <div className="flex flex-1 flex-col gap-2.5 p-5">
-        <div className="flex min-w-0 items-center gap-1.5 pr-5">
-          <CategoryIcon category={market.category} />
-          <PixelLabel className="truncate text-[13px]! tracking-[0.14em]!">
-            {live
-              ? `mkt.${(market.category ?? "open").replace(/\s+/g, "")} // closes ${closesLabel(market.endTime)}`
-              : `mkt.${word} // ${market.category ?? "open"}`}
-          </PixelLabel>
+      {wide ? (
+        <div className="grid flex-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,15rem)]">
+          {caption}
+          <AnchorDetail marketId={market.id} />
         </div>
-
-        <h3 className="font-pixel font-medium line-clamp-3 text-[1.4rem] leading-[1.02] tracking-[0.03em] text-fg uppercase">
-          <Link
-            href={href}
-            className="after:absolute after:inset-0 after:content-[''] focus-visible:outline-none"
-          >
-            {market.title}
-          </Link>
-        </h3>
-
-        {/* Screen readers get the odds as text; the masses are decorative. */}
-        <p className="sr-only">
-          {ended
-            ? "Market resolving — closed and awaiting the oracle outcome."
-            : cancelled
-              ? "Market cancelled — no payout."
-              : sides
-                ? sides
-                    .map(
-                      (s) =>
-                        `${s.label} ${oneDp(s.pct)} percent, pays ${multiplier(s.pct / 100)}`,
-                    )
-                    .join(", ")
-                : "No price yet."}
-        </p>
-
-        <div className="mt-auto flex items-baseline justify-between gap-3 pt-1">
-          <PixelLabel className="text-[13px]! tracking-[0.12em]! tabular-nums">
-            {formatVol(market.volume)}
-          </PixelLabel>
-          <PixelLabel
-            className={`text-[13px]! tracking-[0.12em]! tabular-nums ${
-              live ? "text-accent/80" : statusTone(market.status)
-            }`}
-          >
-            {live ? (clock ?? "—") : word.toUpperCase()}
-          </PixelLabel>
-        </div>
-      </div>
+      ) : (
+        caption
+      )}
     </article>
   );
 }

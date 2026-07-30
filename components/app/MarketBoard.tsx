@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import { useAccount } from "wagmi";
 import type { ApiMarket } from "@/lib/markets/types";
 import { getMarkets } from "@/lib/markets/data";
 import { getUnredeemedMarketIds } from "@/lib/profile/data";
+import GalleryTunnel from "@/components/GalleryTunnel";
 import { SplitCard } from "./board/SplitCard";
 import { FilterDropdown } from "./FilterDropdown";
 import { PixelLabel } from "./PixelLabel";
@@ -57,11 +58,13 @@ export function MarketBoard({
   markets,
   search,
   onResetSearch,
+  onExplore,
 }: {
   categories: string[]
   markets: ApiMarket[];
   search: string;
   onResetSearch: () => void;
+  onExplore?: () => void;
 }) {
   const { address, isConnected } = useAccount();
   const [category, setCategory] = useState<string>("All");
@@ -277,11 +280,40 @@ export function MarketBoard({
       ) : (
         <div
           ref={gridRef}
-          className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 transition-opacity ${busy ? "opacity-40 pointer-events-none" : "opacity-100"
+          className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 transition-opacity ${busy ? "opacity-40 pointer-events-none" : "opacity-100"
             }`}
         >
-          {visible.map((m) => (
-            <SplitCard key={m.id} market={m} />
+          {/* Only index 0 of the CURRENT list is ever the wide anchor. `visible`
+              is a prefix of `filtered` (live-first, then desc volume), so index 0
+              is always the highest-volume live market — infinite scroll only
+              appends later indices, so later batches can never become, or
+              displace, the anchor. That keeps this safe under scroll: nothing
+              re-tiers or reflows a card the user has already seen. */}
+          {visible.map((m, i) => (
+            <Fragment key={m.id}>
+              <SplitCard market={m} wide={i === 0} />
+              {/* Gallery tunnel, third row, right-hand four columns. Row 1 is
+                  the anchor (4) plus one card (2); row 2 holds cards 2-4; so
+                  card 5 opens row 3 and this fills the rest of it. Desktop only
+                  — below lg the grid is 1-2 up and there are no rows to reserve
+                  within, and a WebGL canvas is the last thing to run on mobile.
+                  The inner absolute wrapper gives the canvas a definite box to
+                  measure: GalleryTunnel sizes itself at height:100%, which needs
+                  a resolved parent height rather than a stretched grid cell.
+                  aria-hidden while it is still decorative — that must come off
+                  when it becomes a real link to the explore page. */}
+              {i === 5 && (
+                <div
+                  aria-hidden="true"
+                  data-tunnel=""
+                  className="relative hidden min-h-[200px] overflow-hidden rounded-xl border border-line lg:col-span-4 lg:block"
+                >
+                  <div className="absolute inset-0">
+                    <GalleryTunnel onLaunch={onExplore} />
+                  </div>
+                </div>
+              )}
+            </Fragment>
           ))}
         </div>
       )}
