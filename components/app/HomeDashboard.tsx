@@ -23,6 +23,7 @@ export function HomeDashboard({
   const [search, setSearch] = useState<string>("");
   const router = useRouter();
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const veilRef = useRef<HTMLDivElement | null>(null);
   const launchingRef = useRef(false);
   const timelineRef = useRef<gsap.core.Timeline | null>(null);
 
@@ -71,28 +72,45 @@ export function HomeDashboard({
       },
     });
     timelineRef.current = tl;
-    tl.to(root, { scale: 0.94, duration: 0.28, ease: "power2.out" }).to(
-      root,
-      { scale: 26, duration: 0.9, ease: "power3.in" },
-    );
+    tl.to(root, { scale: 0.94, duration: 0.28, ease: "power2.out" })
+      .to(root, { scale: 26, duration: 0.9, ease: "power3.in" })
+      // Land on flat background rather than on whatever the tunnel happens to
+      // be drawing. At full zoom the viewport covers a ~54x36px patch of the
+      // canvas, which is about the size of the corridor's black core — so its
+      // receding frames sit right on the edge of frame, and because the tunnel
+      // keeps advancing during the zoom, panels drift INTO that patch as it
+      // plays. No origin or scale is safe against moving geometry; covering it
+      // is. The veil is --color-bg, which /explore also sits on, so the two
+      // pages hand over on the same colour and the cut is invisible.
+      .to(veilRef.current, { opacity: 1, duration: 0.38, ease: "power2.in" }, "-=0.4");
   };
 
   return (
-    <div ref={rootRef} className="dot-grid min-h-screen relative flex flex-col">
-      <DotScan />
-      <div className="relative z-10 flex flex-col flex-1 min-h-0">
-        <Topbar search={search} onSearch={setSearch} />
-        <Ticker />
-        <FeaturedPlate markets={featured} />
-        <MarketBoard
-          categories={categories}
-          markets={markets}
-          search={search}
-          onResetSearch={() => setSearch("")}
-          onExplore={startExplore}
-        />
-        <SystemFooter markets={markets} />
+    <>
+      <div ref={rootRef} className="dot-grid min-h-screen relative flex flex-col">
+        <DotScan />
+        <div className="relative z-10 flex flex-col flex-1 min-h-0">
+          <Topbar search={search} onSearch={setSearch} />
+          <Ticker />
+          <FeaturedPlate markets={featured} />
+          <MarketBoard
+            categories={categories}
+            markets={markets}
+            search={search}
+            onResetSearch={() => setSearch("")}
+            onExplore={startExplore}
+          />
+          <SystemFooter markets={markets} />
+        </div>
       </div>
-    </div>
+      {/* Sibling of the scaled root, not a child — inside it, it would be
+          magnified along with everything else. */}
+      <div
+        ref={veilRef}
+        data-veil=""
+        aria-hidden="true"
+        className="pointer-events-none fixed inset-0 z-[100] bg-bg opacity-0"
+      />
+    </>
   );
 }
