@@ -49,7 +49,7 @@ export function FilterDropdown<T extends string>({
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="listbox"
         aria-expanded={open}
-        className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-fg/20 bg-fg/[0.04] font-mono text-[11px] uppercase tracking-[0.14em] text-fg/90 hover:border-fg/45 hover:bg-fg/8 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 cursor-pointer"
+        className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-fg/20 bg-fg/[0.04] font-terminal text-[13px] font-light uppercase tracking-[0.14em] text-fg/90 hover:border-fg/45 hover:bg-fg/8 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 cursor-pointer"
       >
         {label && <span className="text-muted">{label}</span>}
         <span className="min-w-[4.5rem] text-left">{current?.label ?? value}</span>
@@ -75,7 +75,7 @@ export function FilterDropdown<T extends string>({
                     onChange(o.id);
                     setOpen(false);
                   }}
-                  className={`flex w-full items-center justify-between gap-4 px-3 py-2 font-mono text-[11px] uppercase tracking-[0.14em] transition-colors cursor-pointer ${
+                  className={`flex w-full items-center justify-between gap-4 px-3 py-2 font-terminal text-[13px] font-light uppercase tracking-[0.14em] transition-colors cursor-pointer ${
                     on
                       ? "text-accent bg-accent/10"
                       : "text-muted hover:text-fg hover:bg-fg/5"

@@ -142,10 +142,10 @@ export function Topbar({
       )}
 
       <div className="justify-self-end flex items-center gap-3 sm:gap-4 shrink-0">
-        <span className="hidden md:flex items-center gap-2 shrink-0">
+        {/* <span className="hidden md:flex items-center gap-2 shrink-0">
           <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" aria-hidden="true" />
           <MonoLabel>markets.online</MonoLabel>
-        </span>
+        </span> */}
         <CollateralReadout />
         <ConnectButton />
       </div>

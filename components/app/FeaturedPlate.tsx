@@ -9,7 +9,7 @@ import type { FeaturedMarket } from "@/lib/markets/types";
 import { closesLabel, formatVol, oneDp, rankedOutcomes } from "@/lib/markets/format";
 import { CHART_PALETTE } from "../charts/palette";
 import { CategoryIcon } from "./categoryIcon";
-import { MonoLabel } from "../landing/ui/MonoLabel";
+import { PixelLabel } from "./PixelLabel";
 import { PixelHeading } from "../landing/ui/PixelHeading";
 import { usePrefersReducedMotion } from "../landing/usePrefersReducedMotion";
 
@@ -298,7 +298,7 @@ export function FeaturedPlate({ markets }: { markets: FeaturedMarket[] }) {
                 <button onClick={prev} aria-label="Previous market" className="pill pill-ghost p-1.5!">
                   <ChevronLeft size={16} aria-hidden="true" />
                 </button>
-                <span className="font-mono text-[11px] tabular-nums text-muted min-w-12 text-center">
+                <span className="font-terminal text-[13px] font-light tabular-nums text-muted min-w-12 text-center">
                   {String(clamped + 1).padStart(2, "0")} / {String(len).padStart(2, "0")}
                 </span>
                 <button onClick={next} aria-label="Next market" className="pill pill-ghost p-1.5!">
@@ -325,9 +325,9 @@ export function FeaturedPlate({ markets }: { markets: FeaturedMarket[] }) {
           <div className="min-w-0">
             <div className="flex items-center gap-1.5 mb-3">
               <CategoryIcon category={market.category} size={12} />
-              <MonoLabel>
+              <PixelLabel>
                 {`${market.category ?? "open"} // closes ${closesLabel(market.endTime)}`}
-              </MonoLabel>
+              </PixelLabel>
             </div>
 
             <h3 className="font-pixel uppercase leading-[0.95] tracking-wide text-fg text-[clamp(1.9rem,4vw,3.4rem)]">
@@ -359,9 +359,9 @@ export function FeaturedPlate({ markets }: { markets: FeaturedMarket[] }) {
                     onMouseEnter={interactive ? () => setHighlight(s.rank) : undefined}
                     onMouseLeave={interactive ? () => setHighlight(null) : undefined}
                   >
-                    <MonoLabel className="block truncate max-w-40">{s.label}</MonoLabel>
+                    <PixelLabel className="block truncate max-w-40">{s.label}</PixelLabel>
                     <span
-                      className="block font-mono text-3xl sm:text-4xl font-bold tabular-nums leading-tight transition-opacity duration-300"
+                      className="block font-pixel text-3xl sm:text-4xl font-medium tabular-nums leading-tight transition-opacity duration-300"
                       style={{
                         color: s.pct != null ? s.color : "var(--color-muted)",
                         opacity: highlight == null || highlight === s.rank ? 1 : 0.35,
@@ -375,22 +375,22 @@ export function FeaturedPlate({ markets }: { markets: FeaturedMarket[] }) {
             </div>
 
             {!slide.hasHistory && (
-              <MonoLabel className="block mt-4 text-muted/70">no price history yet</MonoLabel>
+              <PixelLabel className="block mt-4 text-muted/70">no price history yet</PixelLabel>
             )}
           </div>
 
           {/* Comments column */}
           <div className="min-w-0 lg:border-l lg:border-line/60 lg:pl-6">
-            <MonoLabel className="block mb-1">comments</MonoLabel>
+            <PixelLabel className="block mb-1">comments</PixelLabel>
             {comments.length === 0 ? (
-              <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted/70 py-2">
+              <p className="font-terminal text-[13px] font-light uppercase tracking-[0.14em] text-muted/70 py-2">
                 no comments yet
               </p>
             ) : (
               <div className="flex flex-col divide-y divide-line/40">
                 {comments.map((c) => (
                   <div key={c.id} className="py-2">
-                    <p className="font-mono text-[11px] text-muted">
+                    <p className="font-terminal text-[13px] font-light text-muted">
                       <span className="text-fg/85">{c.user?.username ?? "anon"}</span>
                       <span className="mx-1.5">·</span>
                       {shortDate(c.createdAt)}
@@ -404,7 +404,7 @@ export function FeaturedPlate({ markets }: { markets: FeaturedMarket[] }) {
         </div>
 
         {/* Band corners: volume + ends, pinned under the terrain. */}
-        <div className="mt-auto pt-8 flex items-center justify-between font-mono text-[11px] uppercase tracking-[0.14em] text-muted tabular-nums">
+        <div className="mt-auto pt-8 flex items-center justify-between font-terminal text-[13px] font-light uppercase tracking-[0.14em] text-muted tabular-nums">
           <span>{formatVol(market.volume)}</span>
           <span>Ends {closesLabel(market.endTime)}</span>
         </div>

@@ -1,15 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import { useAccount } from "wagmi";
 import type { ApiMarket } from "@/lib/markets/types";
 import { getMarkets } from "@/lib/markets/data";
 import { getUnredeemedMarketIds } from "@/lib/profile/data";
-import { MarketCard } from "./MarketCard";
+import GalleryTunnel from "@/components/GalleryTunnel";
+import { SplitCard } from "./board/SplitCard";
 import { FilterDropdown } from "./FilterDropdown";
-import { MonoLabel } from "../landing/ui/MonoLabel";
+import { PixelLabel } from "./PixelLabel";
 import { PixelHeading } from "../landing/ui/PixelHeading";
 
 gsap.registerPlugin(useGSAP);
@@ -39,6 +40,20 @@ const statusRank = (m: ApiMarket) => (m.status === "ACTIVE" ? 0 : 1);
 /** Cards revealed per infinite-scroll step (and the initial window). */
 const MARKETS_BATCH = 12;
 
+/** Below this many results the first card stays a normal card — a hero needs a
+ *  field to lead, and at one or two results it is just a stretched card. */
+const ANCHOR_MIN_CARDS = 3;
+
+/** Below this many markets ON THE PLATFORM there is nothing worth exploring, so
+ *  the tunnel is not offered at all. Counted against the unfiltered list, not
+ *  the current view. */
+const TUNNEL_MIN_MARKETS = 6;
+
+/** Where the tunnel sits: its intended home is the third row's right-hand four
+ *  columns (after card index 5), but it falls back to the end of a shorter list
+ *  so it never depends on a row that was not rendered. */
+const TUNNEL_SLOT_INDEX = 5;
+
 const CATEGORY_COLORS: Record<string, { text: string; inactive: string; bg: string }> = {
   "all": { text: "text-accent", inactive: "text-accent/40 hover:text-accent", bg: "bg-accent" },
   "crypto": { text: "text-orange-400", inactive: "text-orange-400/40 hover:text-orange-400", bg: "bg-orange-400" },
@@ -57,11 +72,13 @@ export function MarketBoard({
   markets,
   search,
   onResetSearch,
+  onExplore,
 }: {
   categories: string[]
   markets: ApiMarket[];
   search: string;
   onResetSearch: () => void;
+  onExplore?: () => void;
 }) {
   const { address, isConnected } = useAccount();
   const [category, setCategory] = useState<string>("All");
@@ -114,7 +131,14 @@ export function MarketBoard({
   };
 
   const filtered = useMemo(() => {
-    let list = boardMarkets.filter((m) => !m.isFeatured);
+    // Exclude a featured market from the board only while it is ALSO live —
+    // that is exactly the set the hero carousel is showing, so this is the
+    // de-duplication. A featured market that has closed or settled is not in
+    // the hero (see app/home/page.tsx), and excluding it here too would make
+    // it unreachable from the Resolving/Resolved filters entirely.
+    let list = boardMarkets.filter(
+      (m) => !(m.isFeatured && m.status === "ACTIVE"),
+    );
     if (statusFilter === "all") {
       // "All" = still in play: active + resolving. Resolved/cancelled markets
       // only surface under their own explicit filter.
@@ -154,6 +178,13 @@ export function MarketBoard({
   }
   const visible = filtered.slice(0, visibleCount);
   const hasMore = visibleCount < filtered.length;
+
+  // -1 when the platform is too small to bother exploring, which also covers an
+  // empty result set (no card index can equal -1, so nothing renders).
+  const tunnelAfterIndex =
+    markets.length >= TUNNEL_MIN_MARKETS
+      ? Math.min(TUNNEL_SLOT_INDEX, visible.length - 1)
+      : -1;
 
   // A sentinel below the grid bumps the window when scrolled near; rootMargin
   // pre-loads the next batch before it reaches the viewport. Re-armed whenever
@@ -205,7 +236,7 @@ export function MarketBoard({
       {/* Section header — names the board so it reads as its own section. */}
       <div className="flex flex-wrap items-end justify-between gap-2 mb-5">
         <PixelHeading className="text-3xl sm:text-4xl">All Markets</PixelHeading>
-        <MonoLabel>browse // filter // sort</MonoLabel>
+        <PixelLabel>browse // filter // sort</PixelLabel>
       </div>
 
       {/* Controls */}
@@ -219,7 +250,7 @@ export function MarketBoard({
                 role="tab"
                 aria-selected={on}
                 onClick={() => selectCategory(c)}
-                className={`relative px-3 py-2.5 font-mono text-[11px] uppercase tracking-[0.14em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 rounded-t ${on ? catColor(c).text : catColor(c).inactive
+                className={`relative px-3 py-2.5 font-terminal text-[13px] font-light uppercase tracking-[0.14em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 rounded-t ${on ? catColor(c).text : catColor(c).inactive
                   }`}
               >
                 {c}
@@ -245,24 +276,24 @@ export function MarketBoard({
       </div>
 
       {/* Count */}
-      <MonoLabel className="block mb-5">
+      <PixelLabel className="block mb-5">
         {busy
           ? "loading //"
           : `${filtered.length} market${filtered.length === 1 ? "" : "s"} // ${statusFilter === "all" ? "shown" : statusFilter}`}
-      </MonoLabel>
+      </PixelLabel>
 
       {!busy && filtered.length === 0 ? (
         <div className="border border-line rounded-xl py-24 flex flex-col items-center gap-4 text-center">
           <PixelHeading className="text-3xl">
             {statusFilter === "unredeemed" ? "Nothing to redeem" : "No markets found"}
           </PixelHeading>
-          <MonoLabel>
+          <PixelLabel>
             {statusFilter === "unredeemed"
               ? isConnected
                 ? "you've claimed all your winnings"
                 : "connect your wallet to see unredeemed winnings"
               : "try another category or search term"}
-          </MonoLabel>
+          </PixelLabel>
           <button onClick={reset} className="pill pill-ghost mt-2 text-sm">
             Reset filters
           </button>
@@ -270,11 +301,53 @@ export function MarketBoard({
       ) : (
         <div
           ref={gridRef}
-          className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 transition-opacity ${busy ? "opacity-40 pointer-events-none" : "opacity-100"
+          className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 transition-opacity ${busy ? "opacity-40 pointer-events-none" : "opacity-100"
             }`}
         >
-          {visible.map((m) => (
-            <MarketCard key={m.id} market={m} />
+          {/* Only index 0 of the CURRENT list is ever the wide anchor. `visible`
+              is a prefix of `filtered` (live-first, then desc volume), so index 0
+              is always the highest-volume live market — infinite scroll only
+              appends later indices, so later batches can never become, or
+              displace, the anchor. That keeps this safe under scroll: nothing
+              re-tiers or reflows a card the user has already seen.
+              Suppressed below ANCHOR_MIN_CARDS: a hero card only means anything
+              when there is a field for it to lead. With one or two results it is
+              a stretched card with dead space beside it, paying for a detail
+              column to justify width it does not need. */}
+          {visible.map((m, i) => (
+            <Fragment key={m.id}>
+              <SplitCard
+                market={m}
+                wide={i === 0 && visible.length >= ANCHOR_MIN_CARDS}
+              />
+              {/* Gallery tunnel — the only entry point to /explore, so its
+                  presence is a decision, not a side effect of the grid. It is
+                  gated on how many markets EXIST (`markets`, the unfiltered prop
+                  from /home), never on how many the current filter returned:
+                  keying it to a fixed index meant a search narrowing to four
+                  results silently removed the link, which is precisely when a
+                  user wants to browse wider. Position still adapts, so it lands
+                  at the end of whatever is on screen rather than at a row that
+                  may not exist.
+                  Desktop only — below lg the grid is 1-2 up with no rows to
+                  reserve within, and a WebGL canvas is the last thing to run on
+                  mobile. The inner absolute wrapper gives the canvas a definite
+                  box to measure: GalleryTunnel sizes itself at height:100%,
+                  which needs a resolved parent height rather than a stretched
+                  grid cell. aria-hidden while decorative — that must come off
+                  when it becomes a real link. */}
+              {i === tunnelAfterIndex && (
+                <div
+                  aria-hidden="true"
+                  data-tunnel=""
+                  className="relative hidden min-h-[200px] overflow-hidden rounded-xl border border-line lg:col-span-4 lg:block"
+                >
+                  <div className="absolute inset-0">
+                    <GalleryTunnel onLaunch={onExplore} />
+                  </div>
+                </div>
+              )}
+            </Fragment>
           ))}
         </div>
       )}
