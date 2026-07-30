@@ -1,18 +1,3 @@
-// Tornado — Originkit
-// Props set in the preview:
-//   background: "#000000"
-//   topRadius: 380
-//   waistRadius: 53
-//   waistPosition: 50
-//   bottomRadius: 1150
-//   twist: 3
-//   zoom: 75
-//   speed: 10
-//   direction: "right"
-//   dots: true
-//   comets: true
-//   repel: true
-
 "use client";
 
 import * as React from "react";
