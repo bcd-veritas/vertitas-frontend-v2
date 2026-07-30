@@ -26,6 +26,15 @@ body {
   color: var(--color-bg);
 }
 
+/* PREVIEW: VT323 (CRT terminal) trialled for the =<13px label layer on /home.
+   Deliberately a plain class rather than an `@theme` key — @theme resolves at
+   dev-server startup, so a new key there needs a restart before it appears.
+   Sits after the Tailwind import, so it wins ties against generated utilities;
+   `font-pixel!` still overrides it where a larger element opts back out. */
+.font-terminal {
+  font-family: var(--font-vt323);
+}
+
 /* Faint dot grid over the page background */
 .dot-grid {
   background-image: radial-gradient(
@@ -140,6 +149,54 @@ button:disabled,
 @media (prefers-reduced-motion: reduce) {
   .dot-scan {
     display: none;
+  }
+}
+
+/* SplitCard — ENDED ("resolving") mass: a slow diagonal highlight sweeps
+   across the amber hatch as a "still working" signal, echoing .dot-scan's
+   mask-sweep idiom but over the hatch texture instead of the dot grid. */
+@keyframes resolving-sweep {
+  from {
+    -webkit-mask-position: 130% 130%;
+    mask-position: 130% 130%;
+  }
+  to {
+    -webkit-mask-position: -30% -30%;
+    mask-position: -30% -30%;
+  }
+}
+/* Explicit per-stop syntax, not the `currentColor 0 1.5px` double-position
+   shorthand: the shorthand makes Lightning CSS drop this whole rule at build
+   time (it survives in SystemFooter only because that one is an inline style
+   and never reaches the CSS pipeline). */
+.resolving-sweep {
+  background-image: repeating-linear-gradient(
+    45deg,
+    currentColor 0px,
+    currentColor 1.5px,
+    transparent 1.5px,
+    transparent 5px
+  );
+  -webkit-mask-image: linear-gradient(
+    115deg,
+    transparent 42%,
+    black 50%,
+    transparent 58%
+  );
+  mask-image: linear-gradient(
+    115deg,
+    transparent 42%,
+    black 50%,
+    transparent 58%
+  );
+  -webkit-mask-size: 300% 300%;
+  mask-size: 300% 300%;
+  animation: resolving-sweep 8s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .resolving-sweep {
+    animation: none;
   }
 }
 

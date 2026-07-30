@@ -87,6 +87,23 @@ export function countdown(iso: string, now: number = Date.now()): string {
   return `T-${Math.floor(hours / 24)}D`;
 }
 
+/** Two-unit countdown for the board card: "37d02h" / "04h09m" / "12m30s" /
+ *  "CLOSED". Always shows a second unit so the readout never jumps width
+ *  class as a market approaches close. */
+export function countdownPair(iso: string, now: number = Date.now()): string {
+  const ms = new Date(iso).getTime() - now;
+  if (ms <= 0) return "CLOSED";
+  const totalSec = Math.floor(ms / 1000);
+  const d = Math.floor(totalSec / 86_400);
+  const h = Math.floor((totalSec % 86_400) / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  if (d > 0) return `${d}D ${pad(h)}H`;
+  if (h > 0) return `${h}H ${pad(m)}M`;
+  return `${m}M ${pad(s)}S`;
+}
+
 /** Fixed-point price string (1e8 == 100%) -> cents number: "62000000" -> 62. */
 export function toCents(price: string): number {
   return Number(price) / 1_000_000;

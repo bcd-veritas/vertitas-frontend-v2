@@ -7,9 +7,9 @@ import { useAccount } from "wagmi";
 import type { ApiMarket } from "@/lib/markets/types";
 import { getMarkets } from "@/lib/markets/data";
 import { getUnredeemedMarketIds } from "@/lib/profile/data";
-import { MarketCard } from "./MarketCard";
+import { SplitCard } from "./board/SplitCard";
 import { FilterDropdown } from "./FilterDropdown";
-import { MonoLabel } from "../landing/ui/MonoLabel";
+import { PixelLabel } from "./PixelLabel";
 import { PixelHeading } from "../landing/ui/PixelHeading";
 
 gsap.registerPlugin(useGSAP);
@@ -114,7 +114,14 @@ export function MarketBoard({
   };
 
   const filtered = useMemo(() => {
-    let list = boardMarkets.filter((m) => !m.isFeatured);
+    // Exclude a featured market from the board only while it is ALSO live —
+    // that is exactly the set the hero carousel is showing, so this is the
+    // de-duplication. A featured market that has closed or settled is not in
+    // the hero (see app/home/page.tsx), and excluding it here too would make
+    // it unreachable from the Resolving/Resolved filters entirely.
+    let list = boardMarkets.filter(
+      (m) => !(m.isFeatured && m.status === "ACTIVE"),
+    );
     if (statusFilter === "all") {
       // "All" = still in play: active + resolving. Resolved/cancelled markets
       // only surface under their own explicit filter.
@@ -205,7 +212,7 @@ export function MarketBoard({
       {/* Section header — names the board so it reads as its own section. */}
       <div className="flex flex-wrap items-end justify-between gap-2 mb-5">
         <PixelHeading className="text-3xl sm:text-4xl">All Markets</PixelHeading>
-        <MonoLabel>browse // filter // sort</MonoLabel>
+        <PixelLabel>browse // filter // sort</PixelLabel>
       </div>
 
       {/* Controls */}
@@ -219,7 +226,7 @@ export function MarketBoard({
                 role="tab"
                 aria-selected={on}
                 onClick={() => selectCategory(c)}
-                className={`relative px-3 py-2.5 font-mono text-[11px] uppercase tracking-[0.14em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 rounded-t ${on ? catColor(c).text : catColor(c).inactive
+                className={`relative px-3 py-2.5 font-terminal text-[13px] font-light uppercase tracking-[0.14em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 rounded-t ${on ? catColor(c).text : catColor(c).inactive
                   }`}
               >
                 {c}
@@ -245,24 +252,24 @@ export function MarketBoard({
       </div>
 
       {/* Count */}
-      <MonoLabel className="block mb-5">
+      <PixelLabel className="block mb-5">
         {busy
           ? "loading //"
           : `${filtered.length} market${filtered.length === 1 ? "" : "s"} // ${statusFilter === "all" ? "shown" : statusFilter}`}
-      </MonoLabel>
+      </PixelLabel>
 
       {!busy && filtered.length === 0 ? (
         <div className="border border-line rounded-xl py-24 flex flex-col items-center gap-4 text-center">
           <PixelHeading className="text-3xl">
             {statusFilter === "unredeemed" ? "Nothing to redeem" : "No markets found"}
           </PixelHeading>
-          <MonoLabel>
+          <PixelLabel>
             {statusFilter === "unredeemed"
               ? isConnected
                 ? "you've claimed all your winnings"
                 : "connect your wallet to see unredeemed winnings"
               : "try another category or search term"}
-          </MonoLabel>
+          </PixelLabel>
           <button onClick={reset} className="pill pill-ghost mt-2 text-sm">
             Reset filters
           </button>
@@ -274,7 +281,7 @@ export function MarketBoard({
             }`}
         >
           {visible.map((m) => (
-            <MarketCard key={m.id} market={m} />
+            <SplitCard key={m.id} market={m} />
           ))}
         </div>
       )}

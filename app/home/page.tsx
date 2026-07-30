@@ -16,5 +16,18 @@ export default async function HomePage() {
     getMarketCategories(),
     getFeaturedMarkets(),
   ]);
-  return <HomeDashboard categories={categories} markets={markets} featured={featured} />;
+  // `GET /markets/featured` filters on isFeatured only, with no status
+  // condition, so a market stays in the carousel after it closes or settles.
+  // The hero is a "go trade this" surface, so it carries live markets only;
+  // the non-live ones fall through to the board under their own status filter
+  // (see MarketBoard's featured exclusion, which is scoped to match this).
+  const liveFeatured = featured.filter((m) => m.status === "ACTIVE");
+
+  return (
+    <HomeDashboard
+      categories={categories}
+      markets={markets}
+      featured={liveFeatured}
+    />
+  );
 }

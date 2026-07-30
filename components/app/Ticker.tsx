@@ -12,7 +12,7 @@ const LINES: { text: string; delta: number }[] = [
 function TickerItem({ text, delta }: { text: string; delta: number }) {
   const up = delta >= 0;
   return (
-    <span className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.14em] text-muted">
+    <span className="inline-flex items-center gap-2 font-terminal text-[13px] font-light uppercase tracking-[0.14em] text-muted">
       {text}
       <span className={up ? "text-yes" : "text-no"}>
         {up ? "▲" : "▼"} {Math.abs(delta)}

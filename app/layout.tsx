@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Handjet } from "next/font/google";
+import { Geist, Geist_Mono, Handjet, VT323 } from "next/font/google";
 import "./globals.css";
 import { Web3Provider } from "@/components/app/Web3Provider";
 
@@ -18,6 +18,14 @@ const handjet = Handjet({
   subsets: ["latin"],
 });
 
+/** PREVIEW: CRT-terminal face trialled for the =<13px label layer on /home.
+ *  Single weight (400) — VT323 ships no others. */
+const vt323 = VT323({
+  weight: "400",
+  variable: "--font-vt323",
+  subsets: ["latin"],
+});
+
 export const metadata: Metadata = {
   title: "Veritas — Trade What Comes Next",
   description:
@@ -32,7 +40,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${handjet.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${handjet.variable} ${vt323.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <Web3Provider>{children}</Web3Provider>
