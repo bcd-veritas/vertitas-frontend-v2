@@ -8,6 +8,7 @@ import { splitSides, type SplitSide } from "./splitSides";
 import { CategoryIcon } from "../categoryIcon";
 import { PixelLabel } from "../PixelLabel";
 import { AnchorDetail } from "./AnchorDetail";
+import { MassField } from "./MassField";
 
 /** Under this share a mass cannot hold a label plus a 2.9rem figure without
  *  clipping mid-digit, so it drops the label and shrinks. Fires often — 90/10
@@ -68,6 +69,7 @@ function Mass({
   side,
   index,
   href,
+  marketId,
   state,
   onEnter,
   onLeave,
@@ -75,6 +77,7 @@ function Mass({
   side: SplitSide;
   index: number;
   href: string;
+  marketId: string;
   /** Which of the two sides the pointer is on, from the parent. */
   state: "idle" | "expanded" | "collapsed";
   onEnter: () => void;
@@ -120,6 +123,8 @@ function Mass({
         flexBasis: 0,
       }}
     >
+      <MassField side={side} index={index} marketId={marketId} />
+
       {/* Payout, centred in the expanded side. Rendered only while expanded so
        *  it cannot bleed out of a collapsed sliver. */}
       <span
@@ -136,8 +141,31 @@ function Mass({
         </span>
       </span>
 
+      {/* Payout at rest, in the space the figure leaves empty. Hidden while
+          either side is hovered — the centred overlay above says the same
+          thing in full, and both at once is just clutter. Dropped on a tight
+          side for the same reason the label is: it cannot hold a dollar
+          figure without slicing a digit. */}
+      {state === "idle" && side.pct >= TIGHT_PCT && (
+        <span
+          aria-hidden="true"
+          className={`pointer-events-none absolute inset-x-4 top-4 z-[1] leading-[1.15] opacity-[0.34] ${
+            index === 0 ? "text-left" : "text-right"
+          }`}
+        >
+          <PixelLabel className="block text-[13px]! tracking-[0.14em]! text-fg/75">
+            wins
+          </PixelLabel>
+          <span
+            className={`font-pixel text-[1.05rem] font-medium tracking-[0.05em] tabular-nums uppercase ${fg}`}
+          >
+            ${multiplier(side.pct / 100).replace("x", "")}
+          </span>
+        </span>
+      )}
+
       {!tight && (
-        <PixelLabel className="text-[13px]! font-normal! tracking-[0.16em]! text-fg/70 whitespace-nowrap">
+        <PixelLabel className="relative z-[1] text-[13px]! font-normal! tracking-[0.16em]! text-fg/70 whitespace-nowrap">
           {side.label}
         </PixelLabel>
       )}
@@ -146,7 +174,7 @@ function Mass({
        *  still be too few pixels for a 2.9rem figure, and TIGHT_PCT alone
        *  can't see that. Caps match the design spec at generous widths. */}
       <span
-        className={`font-pixel font-medium tabular-nums leading-[0.9] whitespace-nowrap ${fg} ${
+        className={`relative z-[1] font-pixel font-medium tabular-nums leading-[0.9] whitespace-nowrap ${fg} ${
           tight
             ? "text-[clamp(0.85rem,15cqi,1.35rem)]"
             : "text-[clamp(0.85rem,20cqi,2.9rem)]"
@@ -309,6 +337,7 @@ export function SplitCard({
               side={s}
               index={i}
               href={href}
+              marketId={market.id}
               state={
                 hovered === null ? "idle" : hovered === i ? "expanded" : "collapsed"
               }

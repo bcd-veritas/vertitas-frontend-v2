@@ -369,3 +369,35 @@ input.date-input:hover::-webkit-calendar-picker-indicator,
 input.date-input:focus::-webkit-calendar-picker-indicator {
   opacity: 1;
 }
+
+/* Market-card mass field — pixel dots drifting up behind the figures. The two
+   animations are split so each dot can rise and blink on its own clock; the
+   per-dot durations, delays and --o come from MassField as inline styles. */
+@keyframes mass-drift {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-230px);
+  }
+}
+@keyframes mass-twinkle {
+  0%,
+  100% {
+    opacity: var(--o);
+  }
+  45% {
+    opacity: calc(var(--o) * 0.18);
+  }
+}
+.mass-star {
+  animation:
+    mass-drift linear infinite,
+    mass-twinkle ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mass-star {
+    animation: none;
+    opacity: var(--o);
+  }
+}
