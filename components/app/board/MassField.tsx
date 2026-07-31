@@ -4,7 +4,7 @@ import type { SplitSide } from "./splitSides";
 /** Positions generated per side. The rendered count is a share of this, so a
  *  price move adds or removes dots from the end of a FIXED list rather than
  *  relaying the field — the dots that stay, stay put. */
-const MAX_STARS = 30;
+const MAX_STARS = 42;
 
 /** FNV-1a. Only needs to spread ids across the seed space, not to be secure. */
 function hashSeed(s: string): number {
@@ -60,8 +60,8 @@ export function MassField({
         left: rand() * 100,
         top: rand() * 100,
         // A few larger dots stop the field reading as uniform noise.
-        size: rand() < 0.22 ? 3 : 2,
-        opacity: 0.4 + rand() * 0.6,
+        size: rand() < 0.45 ? 3 : 2,
+        opacity: 0.68 + rand() * 0.32,
         rise: 7 + rand() * 9,
         blink: 1.6 + rand() * 3.4,
         // Negative delay starts each dot mid-cycle, so the field is already
@@ -76,7 +76,7 @@ export function MassField({
   // carried by brightness instead. Density-proportional was the first
   // instinct, but it leaves a 20% side looking broken rather than unlikely.
   const count = Math.max(3, Math.round((side.pct / 100) * MAX_STARS));
-  const lit = 0.45 + 0.55 * (side.pct / 100);
+  const lit = 0.7 + 0.3 * (side.pct / 100);
   const tint = side.tone === "yes" ? "bg-yes" : "bg-no";
 
   return (

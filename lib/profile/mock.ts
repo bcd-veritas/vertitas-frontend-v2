@@ -18,11 +18,28 @@ export type PositionRow = {
   marketId: string;
   market: string;
   outcome: string;
+  /** EXACT share count — shares are fixed-point and routinely fractional
+   *  (49.7143 is a real holding). Rounding here and multiplying afterwards is
+   *  what made the table disagree with the hero, so rounding happens at the
+   *  point of display and nowhere else. */
   shares: number;
-  /** Average entry price, whole cents. */
-  avgCostCents: number;
-  /** Latest market price for the outcome, whole cents. */
+  /** Average entry price in cents, exact. Null when the position was fully
+   *  closed and reopened, so no entry price was ever recorded. */
+  avgCostCents: number | null;
+  /** Mark price for the outcome in cents, exact. */
   curPriceCents: number;
+  /** Mark value in cents, taken from the API's own per-position figure rather
+   *  than recomputed — these sum to exactly the total the hero shows. */
+  valueCents: number;
+  /** Market lifecycle. ENDED means the book is closed and the oracle has not
+   *  reported, so `curPriceCents` is not a price anyone can trade at. */
+  status: "ACTIVE" | "ENDED" | "RESOLVED" | "CANCELLED";
+  /** RESOLVED only: did this outcome win. Null while undecided. */
+  won: boolean | null;
+  /** Won, settled, and not yet claimed. */
+  claimable: boolean;
+  /** Shares backing a resting order — already committed, not sellable again. */
+  lockedShares: number;
 };
 
 /** A resting order sitting in a market's book. */
@@ -130,14 +147,20 @@ export function mockProfile(address: string): ProfileMock {
       const avgCostCents = 5 + Math.floor(rng() * 90);
       const curPriceCents = Math.max(1, Math.min(99, avgCostCents + Math.floor((rng() - 0.5) * 44)));
       const m = Math.floor(rng() * MARKET_TITLES.length);
+      const shares = 10 + Math.floor(rng() * 500);
       return {
         id: `pos_${i + 1}`,
         marketId: `mkt_${m}`,
         market: MARKET_TITLES[m],
         outcome: OUTCOME_LABELS[Math.floor(rng() * OUTCOME_LABELS.length)],
-        shares: 10 + Math.floor(rng() * 500),
+        shares,
         avgCostCents,
         curPriceCents,
+        valueCents: shares * curPriceCents,
+        status: "ACTIVE",
+        won: null,
+        claimable: false,
+        lockedShares: 0,
       };
     },
   );

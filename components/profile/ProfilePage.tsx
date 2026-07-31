@@ -49,6 +49,7 @@ export function ProfilePage({ markets }: { markets: ApiMarket[] }) {
   const [winRatePct, setWinRatePct] = useState<number | null>(null);
   const [openOrders, setOpenOrders] = useState<OpenOrderRow[]>([]);
   const [history, setHistory] = useState<ActivityRow[]>([]);
+  const [historyTotal, setHistoryTotal] = useState<number>(0);
 
   const profile = useMemo(() => (address ? mockProfile(address) : null), [address]);
 
@@ -86,7 +87,8 @@ export function ProfilePage({ markets }: { markets: ApiMarket[] }) {
       setVolumeTradedCents(volume);
       setWinRatePct(winRate);
       setOpenOrders(orders);
-      setHistory(trades);
+      setHistory(trades.rows);
+      setHistoryTotal(trades.total);
     });
     return () => {
       alive = false;
@@ -132,9 +134,12 @@ export function ProfilePage({ markets }: { markets: ApiMarket[] }) {
     return ok;
   };
 
-  // Hero value = mark value of open positions + collateral on hand. 
-  // PnL is the unrealized figure across open positions (all-time realized PnL has no
-  // endpoint yet). Both default to 0 until the fetch resolves.
+  // Hero value = collateral on hand + the positions we can honestly price.
+  // getPortfolioValue() deliberately leaves out markets awaiting the oracle:
+  // their mark is the best resting ask, and with the book closed there is none,
+  // so the API hands back the wallet's own average cost. Presenting that as
+  // market value is a guess wearing a dollar sign, so those are reported as a
+  // share count beside the hero instead.
   const portfolioValueCents =
     (portfolio?.valueCents ?? 0) + Math.round(cashDollars * 100);
   const pnlCents = portfolio?.pnlCents ?? 0;
@@ -192,6 +197,9 @@ export function ProfilePage({ markets }: { markets: ApiMarket[] }) {
           title={displayName}
           valueCents={portfolioValueCents}
           pnlCents={pnlCents}
+          pnlBaseCents={portfolio?.costBasisCents ?? 0}
+          resolvingShares={portfolio?.resolvingShares ?? 0}
+          claimableCount={portfolio?.claimableCount ?? 0}
           winRatePct={winRatePct ?? 0}
         />
 
@@ -231,6 +239,7 @@ export function ProfilePage({ markets }: { markets: ApiMarket[] }) {
           positions={portfolio?.positions ?? []}
           openOrders={openOrders}
           history={history}
+          historyTotal={historyTotal}
           onCancelOrder={cancelOrder}
         />
       </main>

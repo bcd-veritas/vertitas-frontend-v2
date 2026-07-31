@@ -25,6 +25,20 @@ function signedUsd(usd: number): string {
   return `${usd >= 0 ? "+" : "−"}$${Math.abs(usd).toFixed(2)}`;
 }
 
+/** Shares are fixed-point and often fractional. Whole holdings stay clean;
+ *  fractional ones show enough to explain a value that looks a cent off. */
+function fmtShares(n: number): string {
+  return Number.isInteger(n)
+    ? n.toLocaleString("en-US")
+    : n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+}
+
+/** Same for prices — 77.5862¢ is a real mark, and rounding it to 78¢ for
+ *  display is fine, but only after the arithmetic is done. */
+function fmtCents(n: number): string {
+  return Number.isInteger(n) ? String(n) : n.toFixed(2);
+}
+
 /**
  * Portfolio — the wallet's whole book in one section: live holdings
  * (Positions), resting orders (Open Orders), and the completed-trade log
@@ -35,11 +49,15 @@ export function PortfolioTable({
   positions,
   openOrders,
   history,
+  historyTotal,
   onCancelOrder,
 }: {
   positions: PositionRow[];
   openOrders: OpenOrderRow[];
   history: ActivityRow[];
+  /** The wallet's TOTAL completed trades. `history` is only the fetched slice,
+   *  so without this the tab silently stopped at 50 and looked complete. */
+  historyTotal?: number;
   /** Cancel a resting order by id; resolves true on success. */
   onCancelOrder?: (orderId: string) => Promise<boolean>;
 }) {
@@ -57,7 +75,7 @@ export function PortfolioTable({
   const tabs: { id: Tab; label: string; count: number }[] = [
     { id: "positions", label: "Positions", count: positions.length },
     { id: "orders", label: "Open Orders", count: openOrders.length },
-    { id: "history", label: "History", count: history.length },
+    { id: "history", label: "History", count: historyTotal ?? history.length },
   ];
 
   // Page math off the active tab's length. `currentPage` clamps against a data
@@ -104,7 +122,16 @@ export function PortfolioTable({
       {tab === "orders" && (
         <OrdersTable rows={openOrders.slice(start, end)} onCancel={onCancelOrder} />
       )}
-      {tab === "history" && <HistoryTable rows={history.slice(start, end)} />}
+      {tab === "history" && (
+        <>
+          <HistoryTable rows={history.slice(start, end)} />
+          {historyTotal != null && historyTotal > history.length && (
+            <p className="px-5 py-3 font-mono text-[10px] uppercase tracking-[0.18em] text-muted/70">
+              showing the {history.length} most recent of {historyTotal} trades
+            </p>
+          )}
+        </>
+      )}
 
       {/* Prev / next — only when the active tab spans more than one page. */}
       {totalPages > 1 && (
@@ -160,29 +187,54 @@ function PositionsTable({ rows }: { rows: PositionRow[] }) {
         </thead>
         <tbody className="divide-y divide-line/50 border-t border-line/50">
           {rows.map((r) => {
-            const value = (r.shares * r.curPriceCents) / 100;
-            const pnl = (r.shares * (r.curPriceCents - r.avgCostCents)) / 100;
+            // A closed book awaiting the oracle has no price anyone can trade
+            // at — the API falls back to the position's own average cost, which
+            // would render as a confident value and an exact $0.00 PnL. Show
+            // the holding and withhold the numbers instead.
+            const priced = r.status === "ACTIVE" || r.status === "RESOLVED";
+            const value = r.valueCents / 100;
+            const pnl =
+              r.avgCostCents == null ? null : (r.shares * (r.curPriceCents - r.avgCostCents)) / 100;
             return (
               <tr key={r.id} className="text-sm">
-                <td className="px-5 py-2.5 text-fg/90 max-w-60 truncate">{r.market}</td>
+                <td className="px-5 py-2.5 text-fg/90 max-w-60 truncate">
+                  {r.market}
+                  {r.claimable && (
+                    <span className="ml-2 font-mono text-[10px] uppercase tracking-[0.14em] text-yes">
+                      redeem
+                    </span>
+                  )}
+                  {r.status === "ENDED" && (
+                    <span className="ml-2 font-mono text-[10px] uppercase tracking-[0.14em] text-amber-300">
+                      resolving
+                    </span>
+                  )}
+                </td>
                 <td className="px-3 py-2.5 text-fg/70 whitespace-nowrap">{r.outcome}</td>
                 <td className="px-3 py-2.5 font-mono text-[11px] tabular-nums text-right text-fg/75">
-                  {r.shares.toLocaleString("en-US")}
+                  {fmtShares(r.shares)}
+                  {r.lockedShares > 0 && (
+                    <span className="text-muted/70" title="backing a resting order">
+                      {" "}
+                      ({fmtShares(r.lockedShares)} locked)
+                    </span>
+                  )}
                 </td>
                 <td className="px-3 py-2.5 font-mono text-[11px] tabular-nums text-right text-fg/75">
-                  {r.avgCostCents}¢
+                  {r.avgCostCents == null ? "—" : `${fmtCents(r.avgCostCents)}¢`}
                 </td>
                 <td className="px-3 py-2.5 font-mono text-[11px] tabular-nums text-right text-fg/75">
-                  {r.curPriceCents}¢
+                  {priced ? `${fmtCents(r.curPriceCents)}¢` : "—"}
                 </td>
                 <td className="px-3 py-2.5 font-mono text-[11px] tabular-nums text-right text-fg/90 whitespace-nowrap">
-                  ${value.toFixed(2)}
+                  {priced ? `$${value.toFixed(2)}` : "—"}
                 </td>
                 <td
-                  className={`px-5 py-2.5 font-mono text-[11px] tabular-nums text-right whitespace-nowrap ${pnl >= 0 ? "text-yes" : "text-no"
-                    }`}
+                  className={`px-5 py-2.5 font-mono text-[11px] tabular-nums text-right whitespace-nowrap ${
+                    !priced || pnl == null ? "text-muted/60" : pnl >= 0 ? "text-yes" : "text-no"
+                  }`}
                 >
-                  {signedUsd(pnl)}
+                  {!priced || pnl == null ? "—" : signedUsd(pnl)}
                 </td>
               </tr>
             );

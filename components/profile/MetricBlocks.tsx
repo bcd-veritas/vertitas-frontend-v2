@@ -18,7 +18,7 @@ const BLOCKS = [
   },
   {
     eyebrow: "win rate",
-    desc: "Closed positions that settled profitable.",
+    desc: "Resolved markets where you held the winning outcome.",
     bg: "var(--color-no)",
   },
 ] as const;
@@ -33,7 +33,7 @@ export function MetricBlocks({
   winRatePct: number;
 }) {
   const values = [
-    { value: Math.round(volumeTradedCents / 100), prefix: "$" },
+    { value: volumeTradedCents / 100, prefix: "$", decimals: 2 },
     { value: marketsTraded },
     { value: Math.round(winRatePct), suffix: "%" },
   ];

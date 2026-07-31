@@ -13,17 +13,28 @@ export function HeroValue({
   title,
   valueCents,
   pnlCents,
+  pnlBaseCents,
+  resolvingShares,
+  claimableCount,
   winRatePct,
 }: {
   /** Display headline: username, falling back to the short address. */
   title: string;
   valueCents: number;
   pnlCents: number;
+  /** Cost basis of the positions the PnL came from. Kept separate from
+   *  `valueCents`, which also carries idle collateral — dividing by that turned
+   *  a 79% gain on open positions into "+1.8%". */
+  pnlBaseCents: number;
+  /** Shares in markets that have closed and not yet resolved. No dollar figure:
+   *  nothing can price them until the oracle reports. */
+  resolvingShares: number;
+  /** Settled, winning, unclaimed positions. */
+  claimableCount: number;
   winRatePct: number;
 }) {
   const up = pnlCents >= 0;
-  const baseCents = valueCents - pnlCents;
-  const pnlPct = baseCents > 0 ? (pnlCents / baseCents) * 100 : 0;
+  const pnlPct = pnlBaseCents > 0 ? (pnlCents / pnlBaseCents) * 100 : 0;
   const sign = up ? "+" : "−";
 
   return (
@@ -64,13 +75,33 @@ export function HeroValue({
           </span>
         </p>
 
+        {/* "ALL TIME" until now, which it never was — this is the unrealized
+            mark-to-market on positions still open. Anything already closed
+            contributes nothing to it. */}
         <p
           className={`mt-5 font-mono text-xs tracking-widest tabular-nums ${up ? "text-yes" : "text-no"}`}
         >
           {sign}
           <CountUp value={Math.abs(pnlCents) / 100} prefix="$" decimals={2} /> ({sign}
-          <CountUp value={Math.abs(pnlPct)} decimals={1} suffix="%" />) ALL TIME
+          <CountUp value={Math.abs(pnlPct)} decimals={1} suffix="%" />) UNREALIZED · OPEN
+          POSITIONS
         </p>
+
+        {(resolvingShares > 0 || claimableCount > 0) && (
+          <p className="mt-2 flex flex-wrap gap-x-5 gap-y-1 font-mono text-[11px] tracking-widest text-muted uppercase tabular-nums">
+            {resolvingShares > 0 && (
+              <span>
+                <CountUp value={resolvingShares} decimals={resolvingShares % 1 ? 2 : 0} /> shares
+                awaiting resolution — not priced above
+              </span>
+            )}
+            {claimableCount > 0 && (
+              <span className="text-yes">
+                {claimableCount} market{claimableCount === 1 ? "" : "s"} ready to redeem
+              </span>
+            )}
+          </p>
+        )}
       </div>
     </section>
   );
