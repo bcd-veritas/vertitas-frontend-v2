@@ -18,9 +18,11 @@ import {
   getWinRate,
   getOpenOrders,
   getTradeHistory,
+  getPnlSeries,
   cancelUserOrder,
   type UserIdentity,
   type PortfolioValue,
+  type PnlPoint,
 } from "@/lib/profile/data";
 import { EditProfileDrawer } from "./EditProfileDrawer";
 import { GradientAvatar } from "./GradientAvatar";
@@ -40,8 +42,8 @@ export function ProfilePage({ markets }: { markets: ApiMarket[] }) {
   const [identity, setIdentity] = useState<UserIdentity | null>(null);
   const [editing, setEditing] = useState(false);
 
-  // Live wallet data (real API). Only the PnL time-series still has no
-  // endpoint, so that alone comes from mockProfile below.
+  // Live wallet data (real API). mockProfile now only supplies the username
+  // fallback (always null this round) — every figure below is fetched.
   const [portfolio, setPortfolio] = useState<PortfolioValue | null>(null);
   const [cashDollars, setCashDollars] = useState<number>(0);
   const [marketsTraded, setMarketsTraded] = useState<number | null>(null);
@@ -49,6 +51,7 @@ export function ProfilePage({ markets }: { markets: ApiMarket[] }) {
   const [winRatePct, setWinRatePct] = useState<number | null>(null);
   const [openOrders, setOpenOrders] = useState<OpenOrderRow[]>([]);
   const [history, setHistory] = useState<ActivityRow[]>([]);
+  const [pnlSeries, setPnlSeries] = useState<PnlPoint[]>([]);
 
   const profile = useMemo(() => (address ? mockProfile(address) : null), [address]);
 
@@ -78,7 +81,8 @@ export function ProfilePage({ markets }: { markets: ApiMarket[] }) {
       getWinRate(address),
       getOpenOrders(address),
       getTradeHistory(address),
-    ]).then(([pv, cash, markets, volume, winRate, orders, trades]) => {
+      getPnlSeries(address),
+    ]).then(([pv, cash, markets, volume, winRate, orders, trades, pnl]) => {
       if (!alive) return;
       setPortfolio(pv);
       setCashDollars(cash ? cash.available + cash.locked : 0);
@@ -87,6 +91,7 @@ export function ProfilePage({ markets }: { markets: ApiMarket[] }) {
       setWinRatePct(winRate);
       setOpenOrders(orders);
       setHistory(trades);
+      setPnlSeries(pnl);
     });
     return () => {
       alive = false;
@@ -139,7 +144,7 @@ export function ProfilePage({ markets }: { markets: ApiMarket[] }) {
     (portfolio?.valueCents ?? 0) + Math.round(cashDollars * 100);
   const pnlCents = portfolio?.pnlCents ?? 0;
 
-  const latestUsd = profile.pnlSeries[profile.pnlSeries.length - 1]?.usd ?? 0;
+  const latestUsd = pnlSeries[pnlSeries.length - 1]?.usd ?? 0;
   const readoutUsd = hoverUsd ?? latestUsd;
   const readoutUp = readoutUsd >= 0;
 
@@ -221,7 +226,7 @@ export function ProfilePage({ markets }: { markets: ApiMarket[] }) {
             </div>
           </div>
           <div className="px-2 sm:px-5 pb-6">
-            <PnlChart points={profile.pnlSeries} height={260} onHoverValue={setHoverUsd} />
+            <PnlChart points={pnlSeries} height={260} onHoverValue={setHoverUsd} />
           </div>
         </section>
 
