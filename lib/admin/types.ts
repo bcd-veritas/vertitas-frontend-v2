@@ -44,7 +44,7 @@ export type StatsResponse = {
 export type TimeseriesResponse = {
   range: "24h" | "7d" | "30d";
   bucket: "hour" | "day";
-  // t = ISO bucket start; volume = summed trade quantity (shares) at 1e8 scale, BigInt string
+  // t = ISO bucket start; volume = summed trade quantity (shares) at 1e6 scale, BigInt string
   buckets: { t: string; trades: number; volume: string }[];
 };
 
@@ -52,7 +52,7 @@ export type TimeseriesResponse = {
 export type SideHealth = {
   tokenId: string;
   label: string;
-  price: string | null; // 1e8 fixed-point
+  price: string | null; // 1e6 fixed-point
   bestBid: string | null;
   bestAsk: string | null;
   midpoint: string | null;

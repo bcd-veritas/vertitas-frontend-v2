@@ -7,7 +7,7 @@ export type ApiOutcome = {
   index: number;
   tokenId: string;
   label: string;
-  /** Fixed-point price (1e8 == 100%), or null when the book has no price. */
+  /** Fixed-point price (1e6 == 100%), or null when the book has no price. */
   price: string | null;
 };
 
@@ -31,8 +31,8 @@ export type ApiMarket = {
   resolverType: string;
   /** Deployed PredictionMarket contract address (the oracle key source). */
   marketAddress: string | null;
-  tickSize: string; // fixed-point price units, "1000000" = 1¢
-  minOrderSize: string; // fixed-point amount units, "100000000" = 1 share
+  tickSize: string; // fixed-point price units, "10000" = 1¢
+  minOrderSize: string; // fixed-point amount units, "1000000" = 1 share
 };
 
 // featured part
@@ -121,7 +121,7 @@ export type PricePoint = {
 export type MarketTrade = {
   id: string;
   outcomeIndex: number;
-  price: string; // 1e8 fixed-point
+  price: string; // 1e6 fixed-point
   quantity: string; // shares, fixed-point
   buyerWallet: string;
   sellerWallet: string;
@@ -135,7 +135,7 @@ export type MarketHolder = {
   outcomeIndex: number;
   availableAmount: string; // shares, fixed-point
   lockedAmount: string;
-  averageCost: string | null; // 1e8 fixed-point, or null
+  averageCost: string | null; // 1e6 fixed-point, or null
   user: { id: string; username: string | null } | null;
 };
 

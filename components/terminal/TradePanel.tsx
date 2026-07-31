@@ -39,8 +39,8 @@ function sanitizeNumeric(raw: string): string {
   return cleaned.slice(0, firstDot + 1) + cleaned.slice(firstDot + 1).replace(/\./g, "");
 }
 
-/** details amounts are 1e8 fixed-point strings. */
-const dollars = (v: unknown) => (Number(v) / 1e8).toFixed(2);
+/** details amounts are 1e6 fixed-point strings. */
+const dollars = (v: unknown) => (Number(v) / 1e6).toFixed(2);
 
 function rejectionMessage(e: OrderRejectedError): string {
   switch (e.code) {
@@ -188,9 +188,9 @@ export function TradePanel({
       : book;
   const ended = now != null && new Date(market.endTime).getTime() <= now;
   const live = market.status === "ACTIVE" && !ended;
-  // Per lib/markets/types.ts: tickSize "1000000" == 1¢ (price units); minOrderSize "100000000" == 1 share (amount units).
-  const tickCents = Number(market.tickSize) / 1_000_000;
-  const minShares = Number(market.minOrderSize) / 100_000_000;
+  // Per lib/markets/types.ts: tickSize "10000" == 1¢ (price units); minOrderSize "1000000" == 1 share (amount units).
+  const tickCents = Number(market.tickSize) / 10_000;
+  const minShares = Number(market.minOrderSize) / 1_000_000;
 
   useEffect(() => {
     let alive = true;

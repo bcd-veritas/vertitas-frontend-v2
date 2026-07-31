@@ -33,9 +33,9 @@ function derivePosition(
   const outcome = outcomes.find((o) => o.index === p.outcomeIndex);
   return {
     outcomeIndex: p.outcomeIndex,
-    shares: Number(p.shares) / 1e8,
-    avgCost: p.averageCost != null ? Number(p.averageCost) / 1e8 : null,
-    mark: outcome?.price != null ? Number(outcome.price) / 1e8 : null,
+    shares: Number(p.shares) / 1e6,
+    avgCost: p.averageCost != null ? Number(p.averageCost) / 1e6 : null,
+    mark: outcome?.price != null ? Number(outcome.price) / 1e6 : null,
   };
 }
 
@@ -217,7 +217,7 @@ export function YourPosition({
                 <div className="min-w-0 flex-1" />
                 {won && (
                   <span className="font-mono text-[11px] tabular-nums text-yes shrink-0">
-                    won ${(Number(p.shares) / 1e8).toFixed(2)}
+                    won ${(Number(p.shares) / 1e6).toFixed(2)}
                   </span>
                 )}
                 <span className="font-mono text-sm tabular-nums text-fg/85 shrink-0">

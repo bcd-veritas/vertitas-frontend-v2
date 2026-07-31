@@ -39,7 +39,7 @@ export function ActivityChart() {
     if (!chart.current || !data) return;
     const days = data.buckets.map((b) => b.t.slice(5, 10)); // MM-DD
     const trades = data.buckets.map((b) => b.trades);
-    const shares = data.buckets.map((b) => Number(b.volume) / 1e8); // 1e8 share scale → units
+    const shares = data.buckets.map((b) => Number(b.volume) / 1e6); // 1e6 share scale → units
     chart.current.setOption({
       grid: { left: 40, right: 40, top: 20, bottom: 24 },
       tooltip: { trigger: "axis" },

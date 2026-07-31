@@ -225,7 +225,7 @@ export function ClaimPanel({
           claimed
         </p>
         <p className="font-mono text-2xl tabular-nums text-fg">
-          ${(Number(credited) / 1e8).toFixed(2)}
+          ${(Number(credited) / 1e6).toFixed(2)}
         </p>
         <p className="mt-0.5 font-mono text-[10px] uppercase tracking-[0.1em] text-muted/60">
           credited to your balance

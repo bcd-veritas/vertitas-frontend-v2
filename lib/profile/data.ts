@@ -8,15 +8,14 @@ import type { Role } from "@/lib/admin/types";
 const API = process.env.NEXT_PUBLIC_API_URL;
 
 // Fixed-point scales mirror the middleware's shared/utils/fixed-point.ts:
-//   AMOUNT_SCALE 1e8 — shares (⇒ 1 share = 1e8)
-//   PRICE_SCALE  1e8 — 0–1 probability fraction, so 1¢ = 1e6 price units
+//   AMOUNT_SCALE 1e6 — shares (⇒ 1 share = 1e6)
+//   PRICE_SCALE  1e6 — 0–1 probability fraction, so 1¢ = 1e4 price units
 // Everything monetary — order cost, the collateral ledger, and
 // getTotalValueByWallet's notional — is tracked in AMOUNT_SCALE dollars, so
-// $1 = 1e8 (⇒ 1¢ = 1e6).
-const AMOUNT_PER_SHARE = 100_000_000; // 1e8
-const NOTIONAL_PER_DOLLAR = 100_000_000; // 1e8
-const PRICE_PER_CENT = 1_000_000; // 1e6
-const NOTIONAL_PER_CENT = 1_000_000; // 1e6 (1e8 dollars → cents)
+// $1 = 1e6 (⇒ 1¢ = 1e4).
+const AMOUNT_PER_SHARE = 1_000_000; // 1e6
+const PRICE_PER_CENT = 10_000; // 1e4
+const NOTIONAL_PER_CENT = 10_000; // 1e4 (1e6 dollars → cents)
 
 const priceToCents = (p: string): number => Math.round(Number(p) / PRICE_PER_CENT);
 const amountToShares = (a: string): number => Math.round(Number(a) / AMOUNT_PER_SHARE);
@@ -30,7 +29,7 @@ const exactCents = (p: string): number => Number(p) / PRICE_PER_CENT;
 const exactShares = (a: string): number => Number(a) / AMOUNT_PER_SHARE;
 
 // Two deliberate output conventions, both fed by the shared fetch helpers below:
-//   • market-scoped reads (terminal) return RAW 1e8 strings — callers render
+//   • market-scoped reads (terminal) return RAW 1e6 strings — callers render
 //     them with the markets/format helpers;
 //   • profile-table reads return CONVERTED numbers (whole cents / shares).
 
@@ -204,7 +203,7 @@ export async function getAllowances(wallet: string): Promise<Allowances | null> 
   }
 }
 
-/** Ledger balances in dollars (API is 1e8 fixed-point strings). Null = fetch failed. */
+/** Ledger balances in dollars (API is 1e6 fixed-point strings). Null = fetch failed. */
 export async function getCollateralDollars(
   wallet: string,
 ): Promise<{ available: number; locked: number } | null> {
@@ -213,15 +212,15 @@ export async function getCollateralDollars(
     if (!res.ok) return null;
     const data = (await res.json()) as { available: string; locked: string };
     return {
-      available: Number(data.available) / 1e8,
-      locked: Number(data.locked) / 1e8,
+      available: Number(data.available) / 1e6,
+      locked: Number(data.locked) / 1e6,
     };
   } catch {
     return null;
   }
 }
 
-/** A raw position row as the API returns it (amounts are 1e8 strings). */
+/** A raw position row as the API returns it (amounts are 1e6 strings). */
 type PositionDTO = {
   marketId: string;
   outcomeIndex: number;
@@ -270,7 +269,7 @@ export async function getPositionShares(
 }
 
 /** One outcome the wallet holds in a market. `shares`/`averageCost` are raw
- *  1e8 fixed-point strings (reuse markets/format helpers to render). */
+ *  1e6 fixed-point strings (reuse markets/format helpers to render). */
 export type UserMarketPosition = {
   outcomeIndex: number;
   shares: string;
@@ -295,7 +294,7 @@ export async function getUserMarketPositions(
     .filter((p) => BigInt(p.shares) > 0n);
 }
 
-/** One resting order the wallet has in a market. Raw 1e8 strings. */
+/** One resting order the wallet has in a market. Raw 1e6 strings. */
 export type UserMarketOrder = {
   id: string;
   outcomeIndex: number;
@@ -304,7 +303,7 @@ export type UserMarketOrder = {
   remaining: string;
 };
 
-/** A raw order row as the API returns it (amounts/prices are 1e8 strings). */
+/** A raw order row as the API returns it (amounts/prices are 1e6 strings). */
 type OrderDTO = {
   id: string;
   marketId: string;
@@ -425,7 +424,7 @@ type TotalPositionValueResponse = {
     };
     markPrice: string;
     totalAmount: string;
-    /** Per-position mark value, 1e8. Summing these gives `totalValue` exactly. */
+    /** Per-position mark value, 1e6. Summing these gives `totalValue` exactly. */
     value: string;
   }[];
 };
@@ -520,7 +519,7 @@ export async function getMarketsTraded(wallet: string): Promise<number> {
   }
 }
 
-/** Lifetime traded notional across all fills, in whole cents (API is a 1e8
+/** Lifetime traded notional across all fills, in whole cents (API is a 1e6
  *  fixed-point string, both sides of each trade counted). 0 on any failure. */
 export async function getVolumeTraded(wallet: string): Promise<number> {
   try {
