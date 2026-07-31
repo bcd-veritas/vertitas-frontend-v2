@@ -384,6 +384,12 @@ function CreateMarketProgressModal({
   );
 }
 
+const WIZARD_STEPS = [
+  { title: "Definition", desc: "Basic details & category" },
+  { title: "Timing & Economics", desc: "Close date & liquidity" },
+  { title: "Resolution", desc: "Resolver setup & create" },
+] as const;
+
 export function CreateMarketForm() {
   const [f, setF] = useState<FormState>(INITIAL);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -391,6 +397,7 @@ export function CreateMarketForm() {
   const [submitting, setSubmitting] = useState(false);
   const [stepPhase, setStepPhase] = useState<StepPhase>(null);
   const [stepIndex, setStepIndex] = useState(0);
+  const [currentStep, setCurrentStep] = useState(0);
   const [result, setResult] = useState<{
     ok: boolean;
     message: string;
@@ -419,8 +426,6 @@ export function CreateMarketForm() {
   const shortHex = (h?: string) =>
     h ? `${h.slice(0, 6)}…${h.slice(-4)}` : "—";
 
-  // Success closes the flow AND clears the form (a fresh market next time);
-  // an error leaves the form intact so the operator can fix and retry.
   const closeStepModal = () => {
     const wasSuccess = result?.ok === true;
     setStepPhase(null);
@@ -430,7 +435,42 @@ export function CreateMarketForm() {
       setPayload(null);
       setResult(null);
       setStepIndex(0);
+      setCurrentStep(0);
     }
+  };
+
+  const validateCurrentStep = (step: number): boolean => {
+    const allErrors = validate(f);
+    let stepKeys: (keyof FormState)[] = [];
+
+    if (step === 0) stepKeys = ["title"];
+    else if (step === 1) stepKeys = ["closesAt", "priceCents", "shares", "tickCents", "minShares"];
+    else if (step === 2) {
+      if (isChainlink(f.resolverType)) {
+        stepKeys = ["feedAddress", f.comparison === "RANGE" ? "rangeThresholds" : "targetPrice", "maxStalenessSec"];
+      } else if (f.resolverType === "UMA") {
+        stepKeys = ["umaQuestion", "resolutionReward"];
+      }
+    }
+
+    const stepErrors: Record<string, string> = {};
+    for (const key of stepKeys) {
+      if (allErrors[key]) stepErrors[key] = allErrors[key];
+    }
+
+    setErrors(stepErrors);
+    return Object.keys(stepErrors).length === 0;
+  };
+
+  const handleNext = () => {
+    if (validateCurrentStep(currentStep)) {
+      setCurrentStep((s) => Math.min(WIZARD_STEPS.length - 1, s + 1));
+    }
+  };
+
+  const handleBack = () => {
+    setErrors({});
+    setCurrentStep((s) => Math.max(0, s - 1));
   };
 
   const successSummary = result?.ok ? (
@@ -473,6 +513,11 @@ export function CreateMarketForm() {
 
   const onSubmit = async (ev: React.FormEvent) => {
     ev.preventDefault();
+    // Strictly prevent form submission unless on the final step
+    if (currentStep !== WIZARD_STEPS.length - 1) {
+      handleNext();
+      return;
+    }
     const e = validate(f);
     setErrors(e);
     if (Object.keys(e).length > 0) {
@@ -484,7 +529,6 @@ export function CreateMarketForm() {
     setPayload(body);
     setResult(null);
     setSubmitting(true);
-    // Open the stepper on step 1; SSE events advance it from here.
     setStepIndex(0);
     setStepPhase("running");
     try {
@@ -494,7 +538,6 @@ export function CreateMarketForm() {
         body: JSON.stringify(body),
       });
 
-      // Auth/validation/upstream failures come back as ordinary JSON, not SSE.
       if (!res.ok || !res.body) {
         const data = (await res.json().catch(() => ({}))) as { error?: string };
         const message = data?.error ?? `Request failed (${res.status})`;
@@ -531,289 +574,338 @@ export function CreateMarketForm() {
   const err = (k: keyof FormState) => errors[k] ?? null;
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-5" noValidate>
-      {/* 1. Definition */}
-      <Section label="Market Definition" delay={0}>
-        <div className="flex flex-col gap-4">
-          <Field label="Title" required error={err("title")}>
-            <TextInput
-              value={f.title}
-              onChange={(e) => set("title", e.target.value)}
-              placeholder="Will BTC close above $120k this quarter?"
-            />
-          </Field>
-          <Field label="Description" hint="Resolution wording / details">
-            <TextArea
-              value={f.description}
-              onChange={(e) => set("description", e.target.value)}
-              placeholder="Resolves YES if…"
-            />
-          </Field>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Category">
-              <TextInput
-                list="admin-market-categories"
-                value={f.category}
-                onChange={(e) => set("category", e.target.value)}
-                placeholder="Crypto"
-              />
-              <datalist id="admin-market-categories">
-                {(categories ?? []).map((c) => (
-                  <option key={c} value={c} />
-                ))}
-              </datalist>
-            </Field>
-            <div className="flex items-end pb-2">
-              <Toggle
-                checked={f.isFeatured}
-                onChange={(v) => set("isFeatured", v)}
-                label="Featured"
-                hint="Surface in featured / ranking"
-              />
-            </div>
-          </div>
-        </div>
-      </Section>
-
-      {/* 2. Timing */}
-      <Section
-        label="Timing"
-        delay={60}
-        right={
-          dur != null ? (
-            <span className="font-mono text-[10px] uppercase tracking-wider text-muted">
-              closes {humanDuration(dur)}
-            </span>
-          ) : null
-        }
-      >
-        <Field label="Closes at" required error={err("closesAt")} hint="When trading ends and the market can resolve">
-          <TextInput
-            type="datetime-local"
-            className="date-input"
-            value={f.closesAt}
-            onChange={(e) => set("closesAt", e.target.value)}
-          />
-        </Field>
-      </Section>
-
-      {/* 3. Outcomes */}
-      <Section label="Outcomes" delay={120}>
-        <div className="flex items-center gap-3 font-mono text-xs">
-          <span className="border border-line px-2 py-1 uppercase tracking-wider text-muted">Binary</span>
-          <span className="text-no">No</span>
-          <span className="text-muted/40">/</span>
-          <span className="text-yes">Yes</span>
-          <span className="ml-auto text-[10px] uppercase tracking-wider text-muted/50">fixed · CLOB is binary-only</span>
-        </div>
-      </Section>
-
-      {/* 4. Liquidity seed */}
-      <Section
-        label="Liquidity Seed"
-        delay={180}
-        right={
-          <span className="font-mono text-[10px] uppercase tracking-wider text-muted">
-            <span className="text-yes">Yes {yesCents}¢</span> · <span className="text-no">No {noCents}¢</span>
-          </span>
-        }
-      >
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Launch price (¢)" required error={err("priceCents")} hint="Seeds both books; 50 = 50/50 launch">
-            <TextInput
-              type="number"
-              min={1}
-              max={99}
-              value={f.priceCents}
-              onChange={(e) => set("priceCents", e.target.value)}
-            />
-          </Field>
-          <Field label="Seed size (shares)" required error={err("shares")} hint="Minted per side + depth posted on each book">
-            <TextInput
-              type="number"
-              min={1}
-              value={f.shares}
-              onChange={(e) => set("shares", e.target.value)}
-            />
-          </Field>
-        </div>
-      </Section>
-
-      {/* 5. Trading rules */}
-      <Section label="Trading Rules" delay={240}>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Tick size (¢)" required error={err("tickCents")} hint="Minimum price increment">
-            <TextInput
-              type="number"
-              min={1}
-              value={f.tickCents}
-              onChange={(e) => set("tickCents", e.target.value)}
-            />
-          </Field>
-          <Field label="Min order (shares)" required error={err("minShares")} hint="Smallest allowed order">
-            <TextInput
-              type="number"
-              min={1}
-              value={f.minShares}
-              onChange={(e) => set("minShares", e.target.value)}
-            />
-          </Field>
-        </div>
-      </Section>
-
-      {/* 6. Resolution */}
-      <Section label="Resolution" delay={300}>
-        <div className="flex flex-col gap-4">
-          <Field label="Resolver type" required>
-            <Segmented
-              ariaLabel="Resolver type"
-              value={f.resolverType}
-              onChange={(v) => set("resolverType", v)}
-              options={RESOLVER_OPTIONS}
-            />
-          </Field>
-
-          <Field
-            label="Resolution source"
-            hint='Human label — e.g. "AdminResolver", "Chainlink BTC/USD", or the UMA question'
-          >
-            <TextInput
-              value={f.resolutionSource}
-              onChange={(e) => set("resolutionSource", e.target.value)}
-              placeholder="AdminResolver"
-            />
-          </Field>
-
-          {f.resolverType === "ADMIN" ? (
-            <p className="border-l-2 border-line pl-3 font-mono text-[11px] text-muted">
-              No extra config. You resolve manually later via <span className="text-fg">setOutcome</span>.
-            </p>
-          ) : null}
-
-          {chainlink ? (
-            <div className="flex flex-col gap-4 border-l-2 border-accent/40 pl-3">
-              <Field label="Feed address" required error={err("feedAddress")} hint="Chainlink AggregatorV3 proxy for the pair">
-                <TextInput
-                  value={f.feedAddress}
-                  onChange={(e) => set("feedAddress", e.target.value)}
-                  placeholder="0x…"
-                  spellCheck={false}
-                />
-              </Field>
-              <Field label="Comparison" required>
-                <Segmented
-                  ariaLabel="Comparison"
-                  value={f.comparison}
-                  onChange={(v) => set("comparison", v)}
-                  options={COMPARISON_OPTIONS}
-                />
-              </Field>
-              {f.comparison === "RANGE" ? (
-                <Field
-                  label="Thresholds"
-                  required
-                  error={err("rangeThresholds")}
-                  hint="Comma-separated, ascending, in feed decimals"
-                >
-                  <TextInput
-                    value={f.rangeThresholds}
-                    onChange={(e) => set("rangeThresholds", e.target.value)}
-                    placeholder="100000, 120000, 150000"
-                  />
-                </Field>
-              ) : (
-                <Field
-                  label="Target price"
-                  required
-                  error={err("targetPrice")}
-                  hint="Human value; scaled to the feed's decimals (usually 8)"
-                >
-                  <TextInput
-                    type="number"
-                    value={f.targetPrice}
-                    onChange={(e) => set("targetPrice", e.target.value)}
-                    placeholder="120000"
-                  />
-                </Field>
-              )}
-              <Field label="Max staleness (s)" required error={err("maxStalenessSec")} hint="Max accepted age of the feed answer">
-                <TextInput
-                  type="number"
-                  min={1}
-                  value={f.maxStalenessSec}
-                  onChange={(e) => set("maxStalenessSec", e.target.value)}
-                />
-              </Field>
-            </div>
-          ) : null}
-
-          {f.resolverType === "UMA" ? (
-            <div className="flex flex-col gap-4 border-l-2 border-accent/40 pl-3">
-              <Field label="Question / ancillary data" required error={err("umaQuestion")} hint="The optimistic-oracle question text">
-                <TextArea
-                  value={f.umaQuestion}
-                  onChange={(e) => set("umaQuestion", e.target.value)}
-                  placeholder="Did BTC close above $120,000 on the deadline per…?"
-                />
-              </Field>
-              <Field
-                label="Resolution reward (VTK)"
-                required
-                error={err("resolutionReward")}
-                hint="Paid to the winning UMA proposer; pulled from the Treasury at creation"
+    <form onSubmit={onSubmit} className="flex flex-col gap-6" noValidate>
+      {/* Stepper Bar */}
+      <div className="reveal-rise border border-line bg-surface/40 p-4">
+        <div className="flex items-center justify-between gap-2 overflow-x-auto pb-1">
+          {WIZARD_STEPS.map((step, idx) => {
+            const isActive = idx === currentStep;
+            const isCompleted = idx < currentStep;
+            return (
+              <button
+                key={step.title}
+                type="button"
+                onClick={() => {
+                  if (idx < currentStep || validateCurrentStep(currentStep)) {
+                    setCurrentStep(idx);
+                  }
+                }}
+                className={`flex flex-1 items-center gap-3 border-b-2 pb-2 text-left transition-all ${
+                  isActive
+                    ? "border-accent text-fg"
+                    : isCompleted
+                      ? "border-yes/70 text-fg/70"
+                      : "border-transparent text-muted/40 hover:text-muted"
+                }`}
               >
-                <TextInput
-                  type="number"
-                  min={1}
-                  value={f.resolutionReward}
-                  onChange={(e) => set("resolutionReward", e.target.value)}
-                  placeholder="100"
-                />
-              </Field>
-            </div>
-          ) : null}
+                <span
+                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full font-mono text-xs font-bold transition-all ${
+                    isActive
+                      ? "bg-accent text-bg shadow-[0_0_8px_rgba(246,220,212,0.4)]"
+                      : isCompleted
+                        ? "bg-yes/20 text-yes border border-yes/50"
+                        : "bg-surface border border-line text-muted/50"
+                  }`}
+                >
+                  {isCompleted ? "✓" : idx + 1}
+                </span>
+                <div className="min-w-0">
+                  <div className="font-mono text-xs uppercase tracking-wider font-semibold truncate">
+                    {step.title}
+                  </div>
+                  <div className="font-mono text-[10px] text-muted/60 truncate hidden sm:block">
+                    {step.desc}
+                  </div>
+                </div>
+              </button>
+            );
+          })}
         </div>
-      </Section>
-
-      {/* 7. Advanced */}
-      <div className="reveal-rise" style={{ animationDelay: "360ms" }}>
-        <details open className="group border border-line bg-surface/40">
-          <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 font-mono text-[11px] uppercase tracking-[0.15em] text-muted">
-            Advanced (economics)
-            <span className="text-muted/50 transition-transform group-open:rotate-90">›</span>
-          </summary>
-          <div className="grid gap-4 border-t border-line px-4 py-4 sm:grid-cols-2">
-            <Field label="Max order (shares)" hint="Optional cap per order">
-              <TextInput type="number" min={0} value={f.maxShares} onChange={(e) => set("maxShares", e.target.value)} placeholder="—" />
-            </Field>
-            <Field label="Fee (bps)" hint="100 bps = 1%">
-              <TextInput type="number" min={0} value={f.feeBps} onChange={(e) => set("feeBps", e.target.value)} />
-            </Field>
-          </div>
-        </details>
       </div>
 
-      {/* Submit */}
-      <div className="reveal-rise flex flex-col gap-3" style={{ animationDelay: "420ms" }}>
-        {Object.keys(errors).length > 0 ? (
-          <p className="font-mono text-xs text-no">Fix {Object.keys(errors).length} field(s) above.</p>
-        ) : null}
-        <div className="flex items-center gap-3">
+      {/* Step Content */}
+      <div className="min-h-[320px]">
+        {/* Step 1: Definition */}
+        {currentStep === 0 && (
+          <Section label="Step 1: Market Definition" delay={0}>
+            <div className="flex flex-col gap-4">
+              <Field label="Title" required error={err("title")}>
+                <TextInput
+                  value={f.title}
+                  onChange={(e) => set("title", e.target.value)}
+                  placeholder="Will BTC close above $120k this quarter?"
+                />
+              </Field>
+              <Field label="Description" hint="Resolution wording / details">
+                <TextArea
+                  value={f.description}
+                  onChange={(e) => set("description", e.target.value)}
+                  placeholder="Resolves YES if…"
+                />
+              </Field>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Category">
+                  <TextInput
+                    list="admin-market-categories"
+                    value={f.category}
+                    onChange={(e) => set("category", e.target.value)}
+                    placeholder="Crypto"
+                  />
+                  <datalist id="admin-market-categories">
+                    {(categories ?? []).map((c) => (
+                      <option key={c} value={c} />
+                    ))}
+                  </datalist>
+                </Field>
+                <div className="flex items-end pb-2">
+                  <Toggle
+                    checked={f.isFeatured}
+                    onChange={(v) => set("isFeatured", v)}
+                    label="Featured"
+                    hint="Surface in featured / ranking"
+                  />
+                </div>
+              </div>
+            <div className="flex items-center gap-3 font-mono text-xs">
+              <span className="border border-line px-2 py-1 uppercase tracking-wider text-muted">Binary</span>
+              <span className="text-no">No</span>
+              <span className="text-muted/40">/</span>
+              <span className="text-yes">Yes</span>
+              <span className="ml-auto text-[10px] uppercase tracking-wider text-muted/50">fixed · CLOB is binary-only</span>
+            </div>
+            </div>
+          </Section>
+          
+        )}
+
+        {/* Step 2: Timing & Economics */}
+        {currentStep === 1 && (
+          <Section
+            label="Step 2: Timing & Economics"
+            delay={0}
+            right={
+              dur != null ? (
+                <span className="font-mono text-[10px] uppercase tracking-wider text-accent font-semibold">
+                  closes {humanDuration(dur)} · <span className="text-yes">Yes {yesCents}¢</span> / <span className="text-no">No {noCents}¢</span>
+                </span>
+              ) : null
+            }
+          >
+            <div className="flex flex-col gap-5">
+              <Field label="Closes at" required error={err("closesAt")} hint="When trading ends and the market can resolve">
+                <TextInput
+                  type="datetime-local"
+                  className="date-input"
+                  value={f.closesAt}
+                  onChange={(e) => set("closesAt", e.target.value)}
+                />
+              </Field>
+
+              <div className="grid gap-4 sm:grid-cols-2 border-t border-line/60 pt-4">
+                <Field label="Launch price (¢)" required error={err("priceCents")} hint="Seeds both books; 50 = 50/50 launch">
+                  <TextInput
+                    type="number"
+                    min={1}
+                    max={99}
+                    value={f.priceCents}
+                    onChange={(e) => set("priceCents", e.target.value)}
+                  />
+                </Field>
+                <Field label="Seed size (shares)" required error={err("shares")} hint="Minted per side + depth posted on each book">
+                  <TextInput
+                    type="number"
+                    min={1}
+                    value={f.shares}
+                    onChange={(e) => set("shares", e.target.value)}
+                  />
+                </Field>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2 border-t border-line/60 pt-4">
+                <Field label="Tick size (¢)" required error={err("tickCents")} hint="Minimum price increment">
+                  <TextInput
+                    type="number"
+                    min={1}
+                    value={f.tickCents}
+                    onChange={(e) => set("tickCents", e.target.value)}
+                  />
+                </Field>
+                <Field label="Min order (shares)" required error={err("minShares")} hint="Smallest allowed order">
+                  <TextInput
+                    type="number"
+                    min={1}
+                    value={f.minShares}
+                    onChange={(e) => set("minShares", e.target.value)}
+                  />
+                </Field>
+              </div>
+
+              <details className="group border border-line/60 bg-surface/30">
+                <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2 font-mono text-[11px] uppercase tracking-wider text-muted">
+                  Advanced Limits & Fees
+                  <span className="text-muted/50 transition-transform group-open:rotate-90">›</span>
+                </summary>
+                <div className="grid gap-4 border-t border-line/60 p-3 sm:grid-cols-2">
+                  <Field label="Max order (shares)" hint="Optional cap per order">
+                    <TextInput type="number" min={0} value={f.maxShares} onChange={(e) => set("maxShares", e.target.value)} placeholder="—" />
+                  </Field>
+                  <Field label="Fee (bps)" hint="100 bps = 1%">
+                    <TextInput type="number" min={0} value={f.feeBps} onChange={(e) => set("feeBps", e.target.value)} />
+                  </Field>
+                </div>
+              </details>
+            </div>
+          </Section>
+        )}
+
+        {/* Step 3: Resolution & Deployment */}
+        {currentStep === 2 && (
+          <Section label="Step 3: Resolution & Deployment" delay={0}>
+            <div className="flex flex-col gap-4">
+              <Field label="Resolver type" required>
+                <Segmented
+                  ariaLabel="Resolver type"
+                  value={f.resolverType}
+                  onChange={(v) => set("resolverType", v)}
+                  options={RESOLVER_OPTIONS}
+                />
+              </Field>
+
+              <Field
+                label="Resolution source label"
+                hint='Human label — e.g. "AdminResolver", "Chainlink BTC/USD", or UMA query'
+              >
+                <TextInput
+                  value={f.resolutionSource}
+                  onChange={(e) => set("resolutionSource", e.target.value)}
+                  placeholder="AdminResolver"
+                />
+              </Field>
+
+              {f.resolverType === "ADMIN" ? (
+                <div className="border-l-2 border-accent/40 bg-accent/5 p-3 font-mono text-xs text-fg/80">
+                  Manual admin resolution. Market owner resolves directly via contract call when closed.
+                </div>
+              ) : null}
+
+              {chainlink ? (
+                <div className="flex flex-col gap-4 border-l-2 border-accent/40 pl-3">
+                  <Field label="Feed address" required error={err("feedAddress")} hint="Chainlink AggregatorV3 proxy address">
+                    <TextInput
+                      value={f.feedAddress}
+                      onChange={(e) => set("feedAddress", e.target.value)}
+                      placeholder="0x…"
+                      spellCheck={false}
+                    />
+                  </Field>
+                  <Field label="Comparison" required>
+                    <Segmented
+                      ariaLabel="Comparison"
+                      value={f.comparison}
+                      onChange={(v) => set("comparison", v)}
+                      options={COMPARISON_OPTIONS}
+                    />
+                  </Field>
+                  {f.comparison === "RANGE" ? (
+                    <Field
+                      label="Thresholds"
+                      required
+                      error={err("rangeThresholds")}
+                      hint="Comma-separated, ascending"
+                    >
+                      <TextInput
+                        value={f.rangeThresholds}
+                        onChange={(e) => set("rangeThresholds", e.target.value)}
+                        placeholder="100000, 120000, 150000"
+                      />
+                    </Field>
+                  ) : (
+                    <Field
+                      label="Target price"
+                      required
+                      error={err("targetPrice")}
+                      hint="Human target price"
+                    >
+                      <TextInput
+                        type="number"
+                        value={f.targetPrice}
+                        onChange={(e) => set("targetPrice", e.target.value)}
+                        placeholder="120000"
+                      />
+                    </Field>
+                  )}
+                  <Field label="Max staleness (s)" required error={err("maxStalenessSec")} hint="Max accepted answer age">
+                    <TextInput
+                      type="number"
+                      min={1}
+                      value={f.maxStalenessSec}
+                      onChange={(e) => set("maxStalenessSec", e.target.value)}
+                    />
+                  </Field>
+                </div>
+              ) : null}
+
+              {f.resolverType === "UMA" ? (
+                <div className="flex flex-col gap-4 border-l-2 border-accent/40 pl-3">
+                  <Field label="Question / Ancillary data" required error={err("umaQuestion")} hint="Optimistic oracle statement">
+                    <TextArea
+                      value={f.umaQuestion}
+                      onChange={(e) => set("umaQuestion", e.target.value)}
+                      placeholder="Did BTC close above $120,000 on the deadline per…?"
+                    />
+                  </Field>
+                  <Field
+                    label="Resolution reward (VTK)"
+                    required
+                    error={err("resolutionReward")}
+                    hint="Proposer reward pulled from Treasury"
+                  >
+                    <TextInput
+                      type="number"
+                      min={1}
+                      value={f.resolutionReward}
+                      onChange={(e) => set("resolutionReward", e.target.value)}
+                      placeholder="100"
+                    />
+                  </Field>
+                </div>
+              ) : null}
+            </div>
+          </Section>
+        )}
+      </div>
+
+      {/* Navigation Buttons Bar */}
+      <div className="reveal-rise border-t border-line pt-4 flex items-center justify-between">
+        <button
+          type="button"
+          onClick={handleBack}
+          disabled={currentStep === 0 || submitting}
+          className="border border-line px-5 py-2 font-mono text-xs uppercase tracking-wider text-muted transition-colors hover:enabled:border-fg hover:enabled:text-fg disabled:opacity-30"
+        >
+          ← Back
+        </button>
+
+        {currentStep < WIZARD_STEPS.length - 1 ? (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              handleNext();
+            }}
+            className="border border-fg bg-fg px-6 py-2 font-mono text-xs uppercase tracking-wider text-bg transition-opacity hover:opacity-90 font-semibold"
+          >
+            Next Step →
+          </button>
+        ) : (
           <button
             type="submit"
             disabled={submitting}
-            className="cursor-pointer border border-accent bg-accent px-5 py-2.5 font-mono text-xs uppercase tracking-[0.15em] text-bg transition-opacity hover:opacity-85 disabled:opacity-50"
+            className="cursor-pointer border border-accent bg-accent px-6 py-2.5 font-mono text-xs uppercase tracking-[0.15em] text-bg transition-opacity hover:opacity-90 font-semibold disabled:opacity-50"
           >
             {submitting ? "Creating…" : "Create & Seed Market"}
           </button>
-          <span className="font-mono text-[10px] uppercase tracking-wider text-muted/60">
-            {submitting
-              ? "Deploying + seeding on-chain…"
-              : chainlink
-                ? "Chainlink resolvers aren’t wired yet — expect a 501"
-                : "Posts to /admin/create-market"}
-          </span>
-        </div>
+        )}
       </div>
 
       {result ? (
