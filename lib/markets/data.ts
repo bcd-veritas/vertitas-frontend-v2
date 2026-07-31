@@ -323,6 +323,32 @@ export async function getMarketTrades(
 }
 
 /**
+ * One page of a market's trades, WITH the total.
+ *
+ * Separate from getMarketTrades rather than a change to it: that function
+ * discards `total` and has five callers (AnchorDetail, admin TradingTab,
+ * ResolutionPanel, useTradeBlips, the discussion panel), none of which want a
+ * shape change. The discussion tab needs the total for its count and for an
+ * honest "showing 12 of 180".
+ */
+export async function getMarketTradesPage(
+  marketId: string,
+  page = 1,
+  limit = 12,
+): Promise<{ items: MarketTrade[]; total: number }> {
+  try {
+    const res = await fetch(
+      `${envPath}/trades?marketId=${encodeURIComponent(marketId)}&page=${page}&limit=${limit}`,
+    );
+    if (!res.ok) return { items: [], total: 0 };
+    const data = await res.json();
+    return { items: (data.items ?? []) as MarketTrade[], total: data.total ?? 0 };
+  } catch {
+    return { items: [], total: 0 };
+  }
+}
+
+/**
  * Resolution status + outcome for a market. Degrades to null on any failure
  * so callers can render a loading/empty state instead of erroring.
  */

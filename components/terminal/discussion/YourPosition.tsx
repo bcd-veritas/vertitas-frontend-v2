@@ -3,68 +3,76 @@
 import { useEffect, useState } from "react";
 import { useAccount } from "wagmi";
 
-import type { MarketResolution } from "@/lib/markets/types";
+import type { ApiOutcome, MarketResolution } from "@/lib/markets/types";
 import { getMarketResolution } from "@/lib/markets/data";
 import {
   cancelUserOrder,
-  getUserMarketOpenOrders,
   getUserMarketPositions,
   type UserMarketOrder,
   type UserMarketPosition,
 } from "@/lib/profile/data";
 import { centsLabel, sharesLabel } from "@/lib/markets/format";
-import { useUserRoom } from "@/lib/realtime/hooks";
 import { ConfirmDialog } from "../../common/ConfirmDialog";
 import { EmptyState, OutcomeChip, SectionLabel, SideBadge } from "./atoms";
 
+/** Per-position dollar figures derived from the market's own outcome prices —
+ *  never fabricated. Either leg can be unknown (no book price yet, or the
+ *  position predates cost tracking), in which case the caller renders a dash
+ *  rather than a number built on a guess. */
+type PositionDerived = {
+  outcomeIndex: number;
+  shares: number;
+  avgCost: number | null;
+  mark: number | null;
+};
+
+function derivePosition(
+  p: UserMarketPosition,
+  outcomes: ApiOutcome[],
+): PositionDerived {
+  const outcome = outcomes.find((o) => o.index === p.outcomeIndex);
+  return {
+    outcomeIndex: p.outcomeIndex,
+    shares: Number(p.shares) / 1e8,
+    avgCost: p.averageCost != null ? Number(p.averageCost) / 1e8 : null,
+    mark: outcome?.price != null ? Number(outcome.price) / 1e8 : null,
+  };
+}
+
 /** The connected wallet's stake in THIS market: holdings per outcome + resting
- *  orders (cancellable), plus a resolved banner with winnings. Self-contained —
- *  owns its fetches so the parent stays a thin tab switcher. */
+ *  orders (cancellable), plus a resolution banner that only ever claims what
+ *  the market itself has confirmed. Positions and orders are owned by the
+ *  parent panel (shared with the tab bar's dot indicator); this component
+ *  only fetches the market's resolution state. */
 export function YourPosition({
   marketId,
   labelFor,
+  positions,
+  orders,
+  onOrdersChange,
+  onPositionsChange,
+  outcomes,
 }: {
   marketId: string;
   labelFor: (index: number) => string;
+  positions: UserMarketPosition[] | null;
+  orders: UserMarketOrder[] | null;
+  onOrdersChange: (o: UserMarketOrder[]) => void;
+  onPositionsChange: (p: UserMarketPosition[]) => void;
+  outcomes: ApiOutcome[];
 }) {
   const { address, isConnected } = useAccount();
-  const [positions, setPositions] = useState<UserMarketPosition[] | null>(null);
-  const [orders, setOrders] = useState<UserMarketOrder[] | null>(null);
   const [resolution, setResolution] = useState<MarketResolution | null>(null);
   const [cancelling, setCancelling] = useState<string | null>(null);
   const [confirmOrder, setConfirmOrder] = useState<UserMarketOrder | null>(null);
 
   useEffect(() => {
     let alive = true;
-    if (!address) {
-      Promise.resolve().then(() => {
-        if (!alive) return;
-        setPositions(null);
-        setOrders(null);
-      });
-      return () => {
-        alive = false;
-      };
-    }
-    getUserMarketPositions(address, marketId).then(
-      (p) => alive && setPositions(p),
-    );
-    getUserMarketOpenOrders(address, marketId).then(
-      (o) => alive && setOrders(o),
-    );
     getMarketResolution(marketId).then((r) => alive && setResolution(r));
     return () => {
       alive = false;
     };
-  }, [address, marketId]);
-
-  // Live refresh: fills, cancels, expiry, and settlement all signal the
-  // wallet's user room — re-pull holdings and resting orders when they land.
-  useUserRoom(isConnected ? address : null, () => {
-    if (!address) return;
-    getUserMarketPositions(address, marketId).then(setPositions);
-    getUserMarketOpenOrders(address, marketId).then(setOrders);
-  });
+  }, [marketId]);
 
   async function handleCancel(id: string) {
     if (!address) return;
@@ -73,9 +81,13 @@ export function YourPosition({
     setCancelling(null);
     setConfirmOrder(null);
     if (!ok) return;
-    setOrders((prev) => (prev ? prev.filter((o) => o.id !== id) : prev));
+    onOrdersChange(orders ? orders.filter((o) => o.id !== id) : []);
     // Cancelling an ASK returns shares to the position — refresh holdings.
-    getUserMarketPositions(address, marketId).then(setPositions);
+    // A failed refetch (null) leaves the last-known holdings on screen rather
+    // than wiping them, matching onPositionsChange's non-null contract.
+    getUserMarketPositions(address, marketId).then((p) => {
+      if (p) onPositionsChange(p);
+    });
   }
 
   if (!isConnected || !address)
@@ -83,12 +95,15 @@ export function YourPosition({
   if (positions === null || orders === null)
     return <EmptyState text="loading…" />;
 
-  const winningOutcome = resolution?.resolution?.winningOutcome ?? null;
-  const resolved = winningOutcome !== null;
+  const r = resolution?.resolution ?? null;
+  const winningOutcome = r?.winningOutcome ?? null;
+  // Settled means the MARKET says so — never merely that an outcome was named.
+  const settled = resolution?.status === "RESOLVED" && r?.resolvedAt != null;
+  const proposed = !settled && r?.proposedAt != null && winningOutcome != null;
 
   return (
     <div>
-      {resolved && (
+      {settled && winningOutcome != null && (
         <div className="mt-3 flex items-center gap-2 border border-line/70 bg-fg/[0.02] px-3 py-2">
           <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">
             resolved
@@ -98,11 +113,96 @@ export function YourPosition({
         </div>
       )}
 
+      {proposed && winningOutcome != null && (
+        <div className="mt-3 flex flex-wrap items-center gap-2 border border-amber-400/35 bg-amber-400/[0.06] px-3 py-2">
+          <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-amber-300">
+            proposed
+          </span>
+          <OutcomeChip label={labelFor(winningOutcome)} />
+          {r?.disputed && (
+            <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-no">
+              disputed
+            </span>
+          )}
+          <span className="font-mono text-[11px] text-fg/70">
+            {r?.disputeResolved
+              ? "dispute resolved \u00B7 awaiting final settlement"
+              : "under review"}{" "}
+            &mdash; nothing has paid out
+          </span>
+        </div>
+      )}
+
+      {positions.length > 0 && (
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {(() => {
+            const derived = positions.map((p) => derivePosition(p, outcomes));
+            const totalShares = derived.reduce((s, d) => s + d.shares, 0);
+            const allCostKnown = derived.every((d) => d.avgCost != null);
+            const allMarkKnown = derived.every((d) => d.mark != null);
+            const totalCost = allCostKnown
+              ? derived.reduce((s, d) => s + d.shares * (d.avgCost ?? 0), 0)
+              : null;
+            const totalValue = allMarkKnown
+              ? derived.reduce((s, d) => s + d.shares * (d.mark ?? 0), 0)
+              : null;
+            const unrealized =
+              totalCost != null && totalValue != null
+                ? totalValue - totalCost
+                : null;
+
+            const cells = [
+              [
+                "your shares",
+                Math.round(totalShares).toLocaleString("en-US"),
+                "",
+              ],
+              [
+                "avg cost",
+                totalCost != null && totalShares > 0
+                  ? `${Math.round((totalCost / totalShares) * 100)}\u00A2`
+                  : "\u2014",
+                "",
+              ],
+              [
+                "value now",
+                totalValue != null ? `$${totalValue.toFixed(2)}` : "\u2014",
+                "",
+              ],
+              [
+                "unrealized",
+                unrealized != null
+                  ? `${unrealized >= 0 ? "+" : "\u2212"}$${Math.abs(unrealized).toFixed(2)}`
+                  : "\u2014",
+                unrealized != null
+                  ? unrealized >= 0
+                    ? "text-yes"
+                    : "text-no"
+                  : "",
+              ],
+            ] as const;
+
+            return cells.map(([k, v, tone]) => (
+              <div key={k} className="border border-line px-3 py-2">
+                <span className="font-mono text-[10px] tracking-[0.18em] text-muted/70 uppercase">
+                  {k}
+                </span>
+                <p
+                  className={`mt-1 font-mono text-base font-semibold tabular-nums ${tone}`}
+                >
+                  {v}
+                </p>
+              </div>
+            ));
+          })()}
+        </div>
+      )}
+
       <SectionLabel>Holdings</SectionLabel>
       {positions.length === 0 ? (
         <EmptyState
           text={
-            resolved
+            settled
               ? "settled — winnings paid to your balance"
               : "no shares in this market"
           }
@@ -110,7 +210,7 @@ export function YourPosition({
       ) : (
         <div className="divide-y divide-line/50">
           {positions.map((p) => {
-            const won = resolved && p.outcomeIndex === winningOutcome;
+            const won = settled && p.outcomeIndex === winningOutcome;
             return (
               <div key={p.outcomeIndex} className="flex items-center gap-3 py-3">
                 <OutcomeChip label={labelFor(p.outcomeIndex)} />
