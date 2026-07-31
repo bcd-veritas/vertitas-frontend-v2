@@ -1,7 +1,7 @@
 import type { ApiMarket, ApiOutcome } from "./types";
 
-/** Middleware fixed-point price scale: 1e8 == 1.00 == 100%. */
-const PRICE_SCALE = 100_000_000;
+/** Middleware fixed-point price scale: 1e6 == 1.00 == 100%. */
+const PRICE_SCALE = 1_000_000;
 
 /** Fixed-point price string -> 0–1 fraction, or null when unpriced (null/≤0). */
 export function chanceFraction(price: string | null): number | null {
@@ -114,9 +114,9 @@ export function countdownPair(iso: string, now: number = Date.now()): string {
   return `${m}M ${pad(s)}S`;
 }
 
-/** Fixed-point price string (1e8 == 100%) -> cents number: "62000000" -> 62. */
+/** Fixed-point price string (1e6 == 100%) -> cents number: "620000" -> 62. */
 export function toCents(price: string): number {
-  return Number(price) / 1_000_000;
+  return Number(price) / 10_000;
 }
 
 /**
@@ -133,7 +133,7 @@ export function centsLabel(price: string): string {
   return `${oneDp(toCents(price))}¢`;
 }
 
-/** Fixed-point share quantity (1e8 == 1 share) -> "1,250" (whole shares). */
+/** Fixed-point share quantity (1e6 == 1 share) -> "1,250" (whole shares). */
 export function sharesLabel(quantity: string): string {
-  return (BigInt(quantity) / 100_000_000n).toLocaleString("en-US");
+  return (BigInt(quantity) / 1_000_000n).toLocaleString("en-US");
 }

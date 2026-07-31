@@ -20,7 +20,7 @@ function wonDollars(
   let shares = 0;
   for (const t of trades) {
     if (t.outcomeIndex !== winningOutcome) continue;
-    const qty = Number(t.quantity) / 1e8;
+    const qty = Number(t.quantity) / 1e6;
     if (t.buyerWallet.toLowerCase() === w) shares += qty;
     if (t.sellerWallet.toLowerCase() === w) shares -= qty;
   }
@@ -105,7 +105,7 @@ export function ResolutionPanel({ market }: { market: ApiMarket }) {
       ? (positions.find((p) => p.outcomeIndex === winning) ?? null)
       : null;
   const unclaimedShares = winningPosition
-    ? Number(winningPosition.shares) / 1e8
+    ? Number(winningPosition.shares) / 1e6
     : 0;
   const hasUnclaimed =
     winningPosition != null && BigInt(winningPosition.shares) > 0n;

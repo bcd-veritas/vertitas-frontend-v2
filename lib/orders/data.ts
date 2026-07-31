@@ -30,8 +30,8 @@ export type OrderResult = {
   filledShares: number;
 };
 
-// Shares are AMOUNT_SCALE (1e8) on the wire, same as the ledger.
-const AMOUNT_SCALE = 100_000_000;
+// Shares are AMOUNT_SCALE (1e6) on the wire, same as the ledger.
+const AMOUNT_SCALE = 1_000_000;
 
 /**
  * POST /orders with the exact wire body the signature was computed over —

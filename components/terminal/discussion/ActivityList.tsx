@@ -35,7 +35,7 @@ export function ActivityList({
 
   // Notional, not share count: a 23-share fill at 48c and a 219-share fill at
   // 44c are wildly different trades and used to render identically.
-  const usd = (t: MarketTrade) => (Number(t.quantity) / 1e8) * (Number(t.price) / 1e8);
+  const usd = (t: MarketTrade) => (Number(t.quantity) / 1e6) * (Number(t.price) / 1e6);
   const max = Math.max(...trades.map(usd), 0.01);
 
   async function loadMore() {
@@ -65,9 +65,9 @@ export function ActivityList({
                 <OutcomeChip label={label} />
               </span>
               <span className="relative min-w-[7rem] font-mono text-[12.5px] tabular-nums text-fg">
-                {Math.round(Number(t.quantity) / 1e8).toLocaleString("en-US")}
+                {Math.round(Number(t.quantity) / 1e6).toLocaleString("en-US")}
                 <span className="ml-0.5 text-[9px] text-muted">sh</span> @{" "}
-                {Math.round(Number(t.price) / 1e6)}&cent;
+                {Math.round(Number(t.price) / 1e4)}&cent;
               </span>
               <span className="relative min-w-[4.5rem] text-right font-mono text-[12.5px] tabular-nums text-fg/75">
                 ${usd(t).toFixed(2)}

@@ -23,7 +23,7 @@ const KEEP = 8; // live blips retained; overlay evicts the oldest visually
 const SEEN_CAP = 200;
 
 const fmtQty = (raw: string): string => {
-  const shares = Number(raw) / 1e8;
+  const shares = Number(raw) / 1e6;
   return Number.isInteger(shares) ? String(shares) : shares.toFixed(1);
 };
 
@@ -96,7 +96,7 @@ export function useTradeBlips(
             label,
             sign: binary && label.toLowerCase() === "no" ? "−" : "+",
             qty: fmtQty(t.quantity),
-            priceCents: Math.round(Number(t.price) / 1e6),
+            priceCents: Math.round(Number(t.price) / 1e4),
             outcomeIndex: t.outcomeIndex,
             mine,
           };

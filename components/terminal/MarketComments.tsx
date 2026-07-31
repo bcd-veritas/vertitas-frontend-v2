@@ -144,7 +144,7 @@ export function MarketComments({
     for (const h of holders ?? []) {
       const key = h.walletAddress.toLowerCase();
       const shares =
-        Number(BigInt(h.availableAmount) + BigInt(h.lockedAmount)) / 1e8;
+        Number(BigInt(h.availableAmount) + BigInt(h.lockedAmount)) / 1e6;
       const prev = m.get(key);
       // A wallet can hold both sides; the chip shows the larger holding.
       if (!prev || shares > prev.shares) m.set(key, { label: labelFor(h.outcomeIndex), shares });

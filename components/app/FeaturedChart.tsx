@@ -4,8 +4,8 @@ import { useMemo } from "react";
 import type { FeaturedChartSeries } from "@/lib/markets/types";
 import { ProbabilityChart, type ChartSeries } from "../charts/ProbabilityChart";
 
-/** Fixed-point price (1e8 == 100%) → 0–100 pct. */
-const toPct = (price: string) => Number(price) / 1_000_000;
+/** Fixed-point price (1e6 == 100%) → 0–100 pct. */
+const toPct = (price: string) => Number(price) / 10_000;
 
 export function FeaturedChart({
   series,

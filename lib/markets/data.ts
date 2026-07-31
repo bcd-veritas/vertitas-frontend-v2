@@ -384,7 +384,7 @@ export class ClaimError extends Error {
  * POST /markets/:marketId/claim — reconciles an on-chain redeemPositions()
  * receipt with the app ledger. Call only once the wallet's tx receipt shows
  * status "success"; the backend re-derives the winnings from on-chain state
- * and returns the 1e8 fixed-point amount it credited.
+ * and returns the 1e6 fixed-point amount it credited.
  */
 export async function syncClaim(
   marketId: string,

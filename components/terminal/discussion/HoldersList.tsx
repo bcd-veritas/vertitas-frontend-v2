@@ -6,7 +6,7 @@ import { centsLabel } from "@/lib/markets/format";
 import { Avatar, EmptyState, OutcomeChip, ProportionBar, toneForLabel, walletShort } from "./atoms";
 
 const shares = (h: MarketHolder) =>
-  Number(BigInt(h.availableAmount) + BigInt(h.lockedAmount)) / 1e8;
+  Number(BigInt(h.availableAmount) + BigInt(h.lockedAmount)) / 1e6;
 
 export function HoldersList({
   holders,

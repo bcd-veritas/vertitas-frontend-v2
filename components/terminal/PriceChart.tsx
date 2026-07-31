@@ -17,8 +17,8 @@ const WINDOW_MS: Record<Timeframe, number | null> = {
   ALL: null,
 };
 
-/** Fixed-point price (1e8 == 100%) → 0–100 pct. */
-const toPct = (price: string) => Number(price) / 1_000_000;
+/** Fixed-point price (1e6 == 100%) → 0–100 pct. */
+const toPct = (price: string) => Number(price) / 10_000;
 
 type Ranked = {
   key: string;
