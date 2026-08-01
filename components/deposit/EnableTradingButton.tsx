@@ -1,48 +1,33 @@
 "use client";
 
-import { maxUint256 } from "viem";
-import { useAccount, useWriteContract } from "wagmi";
+import { Zap } from "lucide-react";
+import { useAccount } from "wagmi";
 
-import { erc20Abi } from "@/lib/uma/abi";
-import { VTK_TOKEN } from "@/lib/uma/config";
-import { EXCHANGE_CONTRACT } from "@/lib/deposit/config";
-import { useDepositState } from "@/lib/deposit/useDepositState";
-import { TxButton } from "../terminal/oracle/TxButton";
+import { useOnboarding } from "../onboarding/OnboardingProvider";
 
 /**
- * One-time VTK approval that lets the Exchange COLLECT a user's collateral at
- * settlement (Exchange.settleLegs → COLLECT does
- * `collateralToken.safeTransferFrom(user, exchange, …)`, where collateralToken is
- * VTK). Approving `maxUint256` before the user owns any VTK is valid — it only
- * sets an allowance.
+ * Topbar shortcut into the onboarding wizard. The wizard picks the landing
+ * step itself — the profile step when the wallet has no email on file, the
+ * enable-trading step when it does — so this button never has to know.
  *
- * Standalone action (Phase 1). Renders nothing until a wallet is connected, and
- * disappears once the allowance is granted. Later folds into the onboarding
- * wizard's "enable trading" step.
+ * Hidden until the on-chain reads land, and once trading is enabled.
  */
 export function EnableTradingButton() {
   const { address } = useAccount();
-  const { writeContractAsync } = useWriteContract();
-  const { vtkAllowanceToExchange, refetch } = useDepositState();
+  const { open, tradingEnabled } = useOnboarding();
 
-  // Not connected, still loading, or already approved → nothing to show.
-  if (!address) return null;
-  if (vtkAllowanceToExchange == null) return null;
-  if (vtkAllowanceToExchange > 0n) return null;
+  // `null` = allowances still loading; only `false` means there's work to do.
+  if (!address || tradingEnabled !== false) return null;
 
   return (
-    <TxButton
-      label="enable trading"
-      variant="outline"
-      send={() =>
-        writeContractAsync({
-          address: VTK_TOKEN,
-          abi: erc20Abi,
-          functionName: "approve",
-          args: [EXCHANGE_CONTRACT, maxUint256],
-        })
-      }
-      onConfirmed={() => refetch()}
-    />
+    <button
+      type="button"
+      onClick={open}
+      aria-label="Enable trading"
+      className="inline-flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-accent/35 bg-accent/8 px-2 font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-accent transition-colors hover:border-accent/60 hover:bg-accent/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:ring-offset-2 focus-visible:ring-offset-bg sm:px-3.5"
+    >
+      <Zap size={12} strokeWidth={2.5} aria-hidden="true" />
+      <span className="hidden sm:inline">Enable trading</span>
+    </button>
   );
 }

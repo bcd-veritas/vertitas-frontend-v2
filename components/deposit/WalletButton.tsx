@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ArrowDownToLine } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useAccount } from "wagmi";
 
@@ -8,16 +9,14 @@ import { getUserIdentity, isVoterRole } from "@/lib/profile/data";
 import { WalletModal } from "./WalletModal";
 
 /**
- * Topbar funds entry point — one "Wallet" button opening the combined
- * Deposit / Withdraw modal. The deposit copy still branches on role (voters
- * deposit for wallet VTK to post bonds); withdraw is role-agnostic. Renders
- * nothing until a wallet is connected.
+ * Topbar funds entry point — opens the combined Deposit / Withdraw modal. Named
+ * for the action people come here to do, not the surface it opens: adding funds
+ * is the reason this button gets pressed. Renders nothing until a wallet is
+ * connected.
  */
 export function WalletButton({
-  className,
   onChanged,
 }: {
-  className?: string;
   /** Called after a deposit or withdrawal is confirmed + synced. */
   onChanged?: () => void;
 }) {
@@ -34,15 +33,16 @@ export function WalletButton({
 
   return (
     <>
+      {/* Icon-only until there's room for the label — the topbar is tight on
+          phones, where this shares a row with the brand and the address pill. */}
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className={
-          className ??
-          "pill pill-solid py-1.5! px-4! text-xs font-mono uppercase tracking-wider shrink-0 cursor-pointer"
-        }
+        aria-label="Deposit"
+        className="inline-flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-full bg-accent px-2 font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-bg transition-[filter,transform] hover:brightness-105 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:ring-offset-2 focus-visible:ring-offset-bg motion-reduce:transition-none motion-reduce:active:scale-100 sm:px-3.5"
       >
-        Wallet
+        <ArrowDownToLine size={12} strokeWidth={2.5} aria-hidden="true" />
+        <span className="hidden sm:inline">Deposit</span>
       </button>
 
       <WalletModal

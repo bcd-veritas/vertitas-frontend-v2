@@ -169,8 +169,11 @@ export type EnableTradingResult = {
 export async function enableTrading(wallet: string): Promise<EnableTradingResult> {
   // No body — the wallet comes from the URL. Sending a JSON content-type with an
   // empty body makes Fastify reject it ("Body cannot be empty …"), so omit it.
+  // The server awaits a Sepolia receipt before replying, so this is slow by
+  // design; the deadline only exists so a stuck tx can't hang the caller.
   const res = await fetch(`${API}/users/${wallet}/enable-trading`, {
     method: "POST",
+    signal: AbortSignal.timeout(90_000),
   });
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as {
