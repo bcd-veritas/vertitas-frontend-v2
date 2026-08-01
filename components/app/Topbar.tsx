@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
-import { Search } from "lucide-react";
+import { useCallback, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { RefreshCw, Search } from "lucide-react";
 import { MonoLabel } from "../landing/ui/MonoLabel";
 import { useAccount } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
@@ -24,27 +25,31 @@ import { RollingNumber } from "../profile/RollingNumber";
  */
 function AccountCluster() {
   const { address, isConnected } = useAccount();
-  const [collateral, setCollateral] = useState<{
-    available: number;
-    locked: number;
-  } | null>(null);
 
-  useEffect(() => {
-    let alive = true;
-    if (!isConnected || !address) {
-      Promise.resolve().then(() => alive && setCollateral(null));
-    } else {
-      getCollateralDollars(address).then((c) => alive && setCollateral(c));
-    }
-    return () => {
-      alive = false;
-    };
-  }, [address, isConnected]);
+  // A query (rather than a bare fetch-in-effect) so other flows — e.g. the
+  // onboarding wizard's deposit step — can invalidate ["collateral"] and this
+  // readout refetches without any prop plumbing back to the topbar.
+  const {
+    data: collateral,
+    refetch,
+    isFetching,
+  } = useQuery({
+    queryKey: ["collateral", address],
+    queryFn: () => getCollateralDollars(address as string),
+    enabled: isConnected && !!address,
+  });
 
+  // The fetch usually resolves in a few ms — far less than one 1s spin cycle —
+  // so tie the icon to a state that outlives it: spin for at least one full
+  // rotation, longer only if the request is genuinely still in flight.
+  const [spinning, setSpinning] = useState(false);
   const refresh = useCallback(() => {
-    if (!isConnected || !address) return;
-    getCollateralDollars(address).then((c) => setCollateral(c));
-  }, [address, isConnected]);
+    setSpinning(true);
+    void Promise.allSettled([
+      refetch(),
+      new Promise((r) => setTimeout(r, 1000)),
+    ]).then(() => setSpinning(false));
+  }, [refetch]);
 
   useUserRoom(isConnected ? address : null, refresh);
 
@@ -75,6 +80,27 @@ function AccountCluster() {
                 className="font-mono text-xs text-fg/60"
               />
             </span>
+            {/* Spins during ANY refetch (manual or socket-driven), so it doubles
+                as the ambient "balances syncing" indicator. */}
+            <button
+              type="button"
+              onClick={refresh}
+              disabled={spinning || isFetching}
+              aria-label="Sync balances"
+              title="Sync balances"
+              className="-m-1 cursor-pointer rounded p-1 text-muted transition-colors hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 disabled:cursor-default disabled:text-accent"
+            >
+              <RefreshCw
+                size={12}
+                strokeWidth={2.5}
+                aria-hidden="true"
+                className={
+                  spinning || isFetching
+                    ? "animate-spin motion-reduce:animate-none"
+                    : undefined
+                }
+              />
+            </button>
           </div>
           {/* Separates what the account *is* from what you can *do* with it. */}
           <span aria-hidden="true" className="hidden h-5 w-px bg-line sm:block" />

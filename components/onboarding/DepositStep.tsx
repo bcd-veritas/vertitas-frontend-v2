@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { formatUnits, maxUint256, parseUnits } from "viem";
 import { useAccount, useWriteContract } from "wagmi";
 
@@ -53,6 +54,7 @@ export function DepositStep({
   const { address } = useAccount();
   const { writeContractAsync } = useWriteContract();
   const deposit = useDepositState();
+  const queryClient = useQueryClient();
 
   const [amount, setAmount] = useState("");
   const [syncing, setSyncing] = useState(false);
@@ -86,6 +88,9 @@ export function DepositStep({
     setSyncError(null);
     try {
       await postDeposit(hash);
+      // postDeposit resolves only after the backend has re-synced the ledger,
+      // so invalidating now makes the topbar readout refetch fresh numbers.
+      void queryClient.invalidateQueries({ queryKey: ["collateral"] });
       onDeposited();
       onClose();
     } catch (e) {
