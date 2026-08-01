@@ -6,6 +6,7 @@ import { useAccount } from "wagmi";
 
 import { getUserIdentity } from "@/lib/profile/data";
 import { useDepositState } from "@/lib/deposit/useDepositState";
+import { hasSeenAutoPrompt, markAutoPromptSeen } from "@/lib/onboarding/local-flags";
 import { OnboardingFlow } from "./OnboardingFlow";
 
 type OnboardingApi = {
@@ -24,12 +25,12 @@ const OnboardingContext = createContext<OnboardingApi>({
 export const useOnboarding = () => useContext(OnboardingContext);
 
 /**
- * Owns the one onboarding wizard for the app. It only ever opens on request —
- * `open()`, wired to the topbar's "enable trading" button. It deliberately does
- * NOT auto-open: dismissal isn't persisted, so an auto-opening wizard came back
- * on every reload until the user finished it, which is nagging rather than
- * helping. The topbar button stays visible the whole time trading is off, so
- * the way back in is always one click away.
+ * Owns the one onboarding wizard for the app. It opens on request — `open()`,
+ * wired to the topbar's "enable trading" button — and, separately, auto-opens
+ * once per wallet on a genuine first connect. The auto-open is tracked in
+ * localStorage independent of completion, so it never nags: it fires exactly
+ * once regardless of what the user does with it (dismiss, skip, finish), and
+ * the topbar button remains the way back in after that.
  */
 export function OnboardingProvider({ children }: { children: React.ReactNode }) {
   const { address, isConnected } = useAccount();
@@ -49,6 +50,20 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     deposit.allowance == null || deposit.vtkAllowanceToExchange == null
       ? null
       : deposit.allowance > 0n && deposit.vtkAllowanceToExchange > 0n;
+
+  // Adjusted during render rather than in an effect (the codebase's
+  // `prevOpen`/`prevIdentity` idiom) — this only needs to react to `address`
+  // itself changing, not to subscribe/clean up anything, so there's nothing
+  // an effect would add. `markAutoPromptSeen` is an idempotent localStorage
+  // write, safe under StrictMode's double-render.
+  const [prevAddress, setPrevAddress] = useState(address);
+  if (isConnected && address !== prevAddress) {
+    setPrevAddress(address);
+    if (address && !hasSeenAutoPrompt(address)) {
+      markAutoPromptSeen(address);
+      setActive(true);
+    }
+  }
 
   const open = useCallback(() => setActive(true), []);
 
