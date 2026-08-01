@@ -10,7 +10,7 @@ import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { GradientAvatar } from "../profile/GradientAvatar";
 import { getCollateralDollars } from "@/lib/profile/data";
 import { useUserRoom } from "@/lib/realtime/hooks";
-import { WalletButton } from "../deposit/WalletButton";
+import { DepositButton } from "../deposit/DepositButton";
 import { EnableTradingButton } from "../deposit/EnableTradingButton";
 import { RollingNumber } from "../profile/RollingNumber";
 
@@ -107,11 +107,13 @@ function AccountCluster() {
         </>
       )}
 
-      {/* Setup task — self-hides once trading is enabled. */}
+      {/* Setup task — self-hides once trading is enabled, at which point
+          DepositButton takes this same slot. Mutually exclusive by design;
+          see either component's doc comment. */}
       <EnableTradingButton />
       {/* Reuses the same refresh the realtime socket drives, so the balances
           update the moment a deposit or withdrawal settles. */}
-      <WalletButton onChanged={refresh} />
+      <DepositButton onChanged={refresh} />
     </div>
   );
 }

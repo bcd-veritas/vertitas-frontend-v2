@@ -28,12 +28,15 @@ const HEADINGS: Record<Step, { title: string; subtitle: string }> = {
  */
 export function OnboardingFlow({
   active,
+  identityReady,
   onDismiss,
   address,
   identity,
   onIdentitySaved,
 }: {
   active: boolean;
+  /** The identity fetch has settled, so `credDone` can be trusted. */
+  identityReady: boolean;
   onDismiss: () => void;
   address: string;
   identity: UserIdentity | null;
@@ -64,13 +67,29 @@ export function OnboardingFlow({
     }
   };
 
-  // On activation, open the first step the wallet hasn't completed. Adjusted
-  // during render rather than in an effect (the codebase's `prevOpen` idiom) so
-  // the wizard never paints a frame on the wrong step.
-  const [prevActive, setPrevActive] = useState(active);
-  if (active !== prevActive) {
-    setPrevActive(active);
-    setStep(active ? (ORDER.find((s) => !isDone(s)) ?? null) : null);
+  // Picking the landing step reads `credDone`, which only means anything once
+  // the identity fetch has settled — otherwise a returning user who already has
+  // a username gets sent back to the profile step. The on-chain reads and that
+  // fetch are independent, so `active` alone isn't enough to arm on: the topbar
+  // button appears as soon as the approvals resolve and can outrun the fetch.
+  // Arming on both makes a too-early click simply open once the identity lands.
+  const armed = active && identityReady;
+
+  // On arming, open the first step the wallet hasn't completed. Adjusted during
+  // render rather than in an effect (the codebase's `prevOpen` idiom) so the
+  // wizard never paints a frame on the wrong step.
+  //
+  // Seeded from `false`, deliberately not from `armed`: the provider can flip
+  // `active` during the very render that first mounts this component, in which
+  // case we mount already-armed. Seeding from the prop would swallow that first
+  // transition — no step would ever be picked, `active` would stay stuck true,
+  // and the topbar button would look dead until a reload.
+  const [prevArmed, setPrevArmed] = useState(false);
+  if (armed !== prevArmed) {
+    setPrevArmed(armed);
+    setStep(armed ? (ORDER.find((s) => !isDone(s)) ?? null) : null);
+    // A wallet switch can disarm mid-transaction; don't leave the shell locked.
+    if (!armed) setBusy(false);
   }
 
   // Identity-stable so the steps' onBusyChange effects don't re-fire every render.

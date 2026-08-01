@@ -37,8 +37,8 @@ export function CredentialsStep({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Async-loaded `identity` can arrive after this step has already mounted
-  // (the wizard can auto-open before the identity query resolves) — a plain
+  // `identity` can be replaced after this step has mounted — a background
+  // refetch, or the wizard seeding the cache after a save — and a plain
   // useState initial value would miss it. Resync during render, the
   // `prevOpen`-style idiom used elsewhere in this codebase.
   const [prevIdentity, setPrevIdentity] = useState(identity);
