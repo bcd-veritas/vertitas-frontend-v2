@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { updateUserIdentity, type UserIdentity } from "@/lib/profile/data";
+import { ensureAccount, updateUserIdentity, type UserIdentity } from "@/lib/profile/data";
 import { MonoLabel } from "../landing/ui/MonoLabel";
 import { ModalShell } from "./ModalShell";
 
@@ -53,6 +53,10 @@ export function CredentialsModal({
     setSaving(true);
     setError(null);
     try {
+      // Belt-and-suspenders: AccountSync's ensureAccount call (on connect/account
+      // switch) is fire-and-forget, so it can still be in flight when the user
+      // saves here. Await it first so `update` never 404s on a missing row.
+      await ensureAccount(address);
       const saved = await updateUserIdentity(address, {
         username: trimmedUsername === "" ? null : trimmedUsername,
         email: trimmedEmail === "" ? null : trimmedEmail,

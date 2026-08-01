@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { RainbowKitProvider, darkTheme } from "@rainbow-me/rainbowkit";
-import { WagmiProvider, useAccount, useAccountEffect } from "wagmi";
+import { WagmiProvider, useAccount } from "wagmi";
 import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { wagmiConfig } from "@/lib/wagmi/config";
 import { ensureAccount, getUserIdentity } from "@/lib/profile/data";
@@ -14,12 +14,25 @@ import "@rainbow-me/rainbowkit/styles.css";
 
 const queryClient = new QueryClient();
 
+/**
+ * Watches the connected `address` itself rather than wagmi's `onConnect`
+ * event — `onConnect` only fires on an actual connect/reconnect, not when
+ * MetaMask's `accountsChanged` swaps the active account while already
+ * connected, so a mid-session account switch never reached the backend.
+ */
 function AccountSync() {
-  useAccountEffect({
-    onConnect({ address }) {
-      ensureAccount(address);
-    },
-  });
+  const { address, isConnected } = useAccount();
+  const lastEnsured = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!isConnected || !address || lastEnsured.current === address) return;
+
+    lastEnsured.current = address;
+    ensureAccount(address);
+
+  }, [isConnected, address]);
+
+
   return null;
 }
 
