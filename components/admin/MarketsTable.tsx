@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Search, TriangleAlert } from "lucide-react";
+import { Search, TriangleAlert, ChevronLeft, ChevronRight } from "lucide-react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import { Frame } from "@/components/terminal/Frame";
@@ -57,6 +57,81 @@ function ConsensusCell({ m }: { m: MarketHealth }) {
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+/** Reusable numbered pagination bar. */
+function Pagination({
+  page,
+  totalPages,
+  onPageChange,
+}: {
+  page: number;
+  totalPages: number;
+  onPageChange: (p: number) => void;
+}) {
+  /** Build the page number list with ellipsis — always show first, last,
+   *  and a window of 3 around the current page. */
+  function pageNumbers(): (number | "…")[] {
+    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
+    const set = new Set([1, totalPages, page - 1, page, page + 1].filter((n) => n >= 1 && n <= totalPages));
+    const sorted = [...set].sort((a, b) => a - b);
+    const result: (number | "…")[] = [];
+    for (let i = 0; i < sorted.length; i++) {
+      if (i > 0 && (sorted[i] as number) - (sorted[i - 1] as number) > 1) result.push("…");
+      result.push(sorted[i]);
+    }
+    return result;
+  }
+
+  const btnBase =
+    "h-7 min-w-[28px] border border-line px-1.5 font-mono text-[10px] uppercase tracking-wider transition-colors disabled:cursor-default disabled:opacity-40";
+
+  return (
+    <div className="mt-3 flex items-center justify-between gap-2 font-mono text-[10px] uppercase tracking-wider text-muted">
+      <button
+        onClick={() => onPageChange(Math.max(1, page - 1))}
+        disabled={page <= 1}
+        className={`${btnBase} flex items-center gap-1 px-2.5 hover:enabled:border-fg hover:enabled:text-fg`}
+        aria-label="Previous page"
+      >
+        <ChevronLeft size={11} aria-hidden="true" />
+        Prev
+      </button>
+
+      <div className="flex items-center gap-1">
+        {pageNumbers().map((n, i) =>
+          n === "…" ? (
+            <span key={`ellipsis-${i}`} className="px-1 text-muted/50">
+              …
+            </span>
+          ) : (
+            <button
+              key={n}
+              onClick={() => onPageChange(n as number)}
+              aria-current={n === page ? "page" : undefined}
+              className={`${btnBase} ${
+                n === page
+                  ? "border-fg/60 bg-fg/8 text-fg"
+                  : "text-muted hover:border-fg/50 hover:text-fg"
+              }`}
+            >
+              {n}
+            </button>
+          ),
+        )}
+      </div>
+
+      <button
+        onClick={() => onPageChange(Math.min(totalPages, page + 1))}
+        disabled={page >= totalPages}
+        className={`${btnBase} flex items-center gap-1 px-2.5 hover:enabled:border-fg hover:enabled:text-fg`}
+        aria-label="Next page"
+      >
+        Next
+        <ChevronRight size={11} aria-hidden="true" />
+      </button>
     </div>
   );
 }
@@ -118,7 +193,7 @@ export function MarketsTable({
   const { data, isLoading, isPlaceholderData } = useQuery({
     queryKey: ["admin-markets-list", page, status, resolverType, debouncedCat, sort, debounced],
     queryFn: () =>
-      getAdminMarkets(page, 20, {
+      getAdminMarkets(page, 15, {
         status,
         resolverType,
         category: debouncedCat,
@@ -336,24 +411,12 @@ export function MarketsTable({
         </table>
       </div>
 
-      {data && data.totalPages > 1 && (
-        <div className="mt-3 flex items-center justify-between font-mono text-[10px] uppercase tracking-wider text-muted">
-          <button
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={page <= 1}
-            className="border border-line px-2.5 py-1 transition-colors disabled:cursor-default disabled:opacity-40 hover:enabled:border-fg hover:enabled:text-fg"
-          >
-            Prev
-          </button>
-          <span>Page {data.page} / {Math.max(1, data.totalPages)}</span>
-          <button
-            onClick={() => setPage((p) => (data.totalPages > p ? p + 1 : p))}
-            disabled={page >= data.totalPages}
-            className="border border-line px-2.5 py-1 transition-colors disabled:cursor-default disabled:opacity-40 hover:enabled:border-fg hover:enabled:text-fg"
-          >
-            Next
-          </button>
-        </div>
+      {data && (
+        <Pagination
+          page={page}
+          totalPages={Math.max(1, data.totalPages)}
+          onPageChange={setPage}
+        />
       )}
     </Frame>
   );

@@ -508,6 +508,31 @@ export async function getPortfolioValue(
   }
 }
 
+export type PnlPoint = { t: number; usd: number };
+
+/**
+ * The wallet's PnL time-series for the profile chart. Historical points are
+ * cumulative realized PnL per day; the terminal point folds in current
+ * unrealized, so the line ends at the same total the hero PnL shows. The API's
+ * `pnl` is a 1e8 fixed-point dollar string. Empty array on any failure or for a
+ * wallet with no trading history — the chart then simply renders nothing.
+ */
+export async function getPnlSeries(wallet: string): Promise<PnlPoint[]> {
+  try {
+    const res = await fetch(`${API}/users/${wallet}/pnl/history`);
+    if (!res.ok) return [];
+    const data = (await res.json()) as {
+      points?: { timestamp: string; pnl: string }[];
+    };
+    return (data.points ?? []).map((p) => ({
+      t: new Date(p.timestamp).getTime(),
+      usd: Number(p.pnl) / NOTIONAL_PER_DOLLAR,
+    }));
+  } catch {
+    return [];
+  }
+}
+
 /** Distinct markets the wallet has traded. 0 on any failure. */
 export async function getMarketsTraded(wallet: string): Promise<number> {
   try {

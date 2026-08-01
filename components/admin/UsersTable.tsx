@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Search } from "lucide-react";
+import { Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAccount } from "wagmi";
 
@@ -112,6 +112,81 @@ function ChainPill({
   );
 }
 
+/** Numbered pagination bar with ellipsis for large page counts. */
+function Pagination({
+  page,
+  totalPages,
+  onPageChange,
+}: {
+  page: number;
+  totalPages: number;
+  onPageChange: (p: number) => void;
+}) {
+  function pageNumbers(): (number | "…")[] {
+    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
+    const set = new Set(
+      [1, totalPages, page - 1, page, page + 1].filter((n) => n >= 1 && n <= totalPages),
+    );
+    const sorted = [...set].sort((a, b) => a - b);
+    const result: (number | "…")[] = [];
+    for (let i = 0; i < sorted.length; i++) {
+      if (i > 0 && (sorted[i] as number) - (sorted[i - 1] as number) > 1) result.push("…");
+      result.push(sorted[i]);
+    }
+    return result;
+  }
+
+  const btnBase =
+    "h-7 min-w-[28px] border border-line px-1.5 font-mono text-[10px] uppercase tracking-wider transition-colors disabled:cursor-default disabled:opacity-40";
+
+  return (
+    <div className="mt-3 flex items-center justify-between gap-2 font-mono text-[10px] uppercase tracking-wider text-muted">
+      <button
+        onClick={() => onPageChange(Math.max(1, page - 1))}
+        disabled={page <= 1}
+        className={`${btnBase} flex items-center gap-1 px-2.5 hover:enabled:border-fg hover:enabled:text-fg`}
+        aria-label="Previous page"
+      >
+        <ChevronLeft size={11} aria-hidden="true" />
+        Prev
+      </button>
+
+      <div className="flex items-center gap-1">
+        {pageNumbers().map((n, i) =>
+          n === "…" ? (
+            <span key={`ellipsis-${i}`} className="px-1 text-muted/50">
+              …
+            </span>
+          ) : (
+            <button
+              key={n}
+              onClick={() => onPageChange(n as number)}
+              aria-current={n === page ? "page" : undefined}
+              className={`${btnBase} ${
+                n === page
+                  ? "border-fg/60 bg-fg/8 text-fg"
+                  : "text-muted hover:border-fg/50 hover:text-fg"
+              }`}
+            >
+              {n}
+            </button>
+          ),
+        )}
+      </div>
+
+      <button
+        onClick={() => onPageChange(Math.min(totalPages, page + 1))}
+        disabled={page >= totalPages}
+        className={`${btnBase} flex items-center gap-1 px-2.5 hover:enabled:border-fg hover:enabled:text-fg`}
+        aria-label="Next page"
+      >
+        Next
+        <ChevronRight size={11} aria-hidden="true" />
+      </button>
+    </div>
+  );
+}
+
 function SkeletonRows() {
   return (
     <>
@@ -139,6 +214,7 @@ function SkeletonRows() {
 
 export function UsersTable() {
   const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState<string>("ALL");
   const [debounced, setDebounced] = useState("");
   const [page, setPage] = useState(1);
 
@@ -153,7 +229,7 @@ export function UsersTable() {
 
   const { data, isLoading, isPlaceholderData } = useQuery({
     queryKey: ["admin-users", page, debounced],
-    queryFn: () => getAdminUsers(page, 20, debounced),
+    queryFn: () => getAdminUsers(page, 10, debounced),
     placeholderData: keepPreviousData,
     refetchInterval: 30_000,
   });
@@ -168,9 +244,14 @@ export function UsersTable() {
   });
   const actorRole = access?.role ?? null;
 
+  // Filter items by roleFilter if specified
+  const filteredItems = (data?.items ?? []).filter(
+    (u) => roleFilter === "ALL" || u.role === roleFilter,
+  );
+
   // On-chain status is fetched separately from the (DB-only) users list, so a
   // dead RPC never breaks the table — it just yields no status items.
-  const oracleIds = (data?.items ?? [])
+  const oracleIds = filteredItems
     .filter((u) => isOracleRole(u.role))
     .map((u) => u.id);
 
@@ -206,6 +287,8 @@ export function UsersTable() {
     },
   });
 
+  const ROLES_LIST = ["ALL", "USER", "VOTER", "ORACLE_PARTICIPANT", "ADMIN", "SUPERADMIN"];
+
   return (
     <Frame
       label="User registry"
@@ -218,8 +301,8 @@ export function UsersTable() {
       }
       className="p-4"
     >
-      <div className="mb-3">
-        <div className="relative max-w-sm">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="relative w-full sm:w-72">
           <Search
             size={14}
             className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"
@@ -231,6 +314,26 @@ export function UsersTable() {
             placeholder="Search wallet, username, or email…"
             className="w-full border border-line bg-transparent py-2 pl-8 pr-3 font-mono text-[13px] text-fg placeholder:text-muted focus:border-fg focus:outline-none"
           />
+        </div>
+
+        {/* Role Filter Chips */}
+        <div className="flex flex-wrap items-center gap-1">
+          {ROLES_LIST.map((r) => {
+            const active = roleFilter === r;
+            return (
+              <button
+                key={r}
+                onClick={() => setRoleFilter(r)}
+                className={`border px-2 py-1 font-mono text-[10px] uppercase tracking-wider transition-colors ${
+                  active
+                    ? "border-fg/80 bg-fg/10 text-fg"
+                    : "border-line/60 text-muted/60 hover:border-fg/30 hover:text-fg"
+                }`}
+              >
+                {r.replace("_", " ")}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -252,25 +355,25 @@ export function UsersTable() {
           <tbody>
             {isLoading ? (
               <SkeletonRows />
-            ) : !data || data.items.length === 0 ? (
+            ) : !data || filteredItems.length === 0 ? (
               <tr>
                 <td colSpan={6}>
                   <div className="relative my-2 overflow-hidden border border-line/60 py-10 text-center">
                     <div className="dot-grid pointer-events-none absolute inset-0 opacity-30" aria-hidden="true" />
                     <p className="relative font-mono text-xs text-muted">No users found.</p>
-                    {search && (
+                    {(search || roleFilter !== "ALL") && (
                       <button
-                        onClick={() => setSearch("")}
+                        onClick={() => { setSearch(""); setRoleFilter("ALL"); }}
                         className="relative mt-3 border border-line px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider text-muted transition-colors hover:border-fg hover:text-fg"
                       >
-                        Clear search
+                        Reset filters
                       </button>
                     )}
                   </div>
                 </td>
               </tr>
             ) : (
-              data.items.map((u: UserRow, i) => {
+              filteredItems.map((u: UserRow, i) => {
                 const self =
                   !!address && u.walletAddress.toLowerCase() === address.toLowerCase();
                 const locked = BigInt(u.collateralLocked) > 0n;
@@ -361,26 +464,12 @@ export function UsersTable() {
         </table>
       </div>
 
-      {data && data.totalPages > 1 && (
-        <div className="mt-3 flex items-center justify-between font-mono text-[10px] uppercase tracking-wider text-muted">
-          <button
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={page <= 1}
-            className="border border-line px-2.5 py-1 transition-colors disabled:cursor-default disabled:opacity-40 hover:enabled:border-fg hover:enabled:text-fg"
-          >
-            Prev
-          </button>
-          <span>
-            Page {data.page} / {Math.max(1, data.totalPages)}
-          </span>
-          <button
-            onClick={() => setPage((p) => (data.totalPages > p ? p + 1 : p))}
-            disabled={page >= data.totalPages}
-            className="border border-line px-2.5 py-1 transition-colors disabled:cursor-default disabled:opacity-40 hover:enabled:border-fg hover:enabled:text-fg"
-          >
-            Next
-          </button>
-        </div>
+      {data && (
+        <Pagination
+          page={page}
+          totalPages={Math.max(1, data.totalPages)}
+          onPageChange={setPage}
+        />
       )}
 
       {pending ? (
