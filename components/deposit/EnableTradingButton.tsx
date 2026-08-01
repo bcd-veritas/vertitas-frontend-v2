@@ -10,7 +10,9 @@ import { useOnboarding } from "../onboarding/OnboardingProvider";
  * step itself — the profile step when the wallet has no email on file, the
  * enable-trading step when it does — so this button never has to know.
  *
- * Hidden until the on-chain reads land, and once trading is enabled.
+ * Hidden until the on-chain reads land, and once trading is enabled — at
+ * which point DepositButton takes over this topbar slot (see its own doc
+ * comment; the two are mutually exclusive on the same `tradingEnabled` read).
  */
 export function EnableTradingButton() {
   const { address } = useAccount();

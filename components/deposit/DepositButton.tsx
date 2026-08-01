@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAccount } from "wagmi";
 
 import { getUserIdentity, isVoterRole } from "@/lib/profile/data";
+import { useOnboarding } from "../onboarding/OnboardingProvider";
 import { WalletModal } from "./WalletModal";
 
 /**
@@ -13,14 +14,22 @@ import { WalletModal } from "./WalletModal";
  * for the action people come here to do, not the surface it opens: adding funds
  * is the reason this button gets pressed. Renders nothing until a wallet is
  * connected.
+ *
+ * Mutually exclusive with EnableTradingButton, and reads the same
+ * `tradingEnabled` signal to arbitrate: while trading isn't enabled yet, that
+ * setup task takes the topbar slot instead of this one — depositing is
+ * already covered inside that flow's own deposit step, so showing both here
+ * is redundant. Once trading is enabled, EnableTradingButton self-hides and
+ * this one takes over.
  */
-export function WalletButton({
+export function DepositButton({
   onChanged,
 }: {
   /** Called after a deposit or withdrawal is confirmed + synced. */
   onChanged?: () => void;
 }) {
   const { address, isConnected } = useAccount();
+  const { tradingEnabled } = useOnboarding();
   const [open, setOpen] = useState(false);
 
   const { data: identity } = useQuery({
@@ -29,7 +38,10 @@ export function WalletButton({
     enabled: isConnected && !!address,
   });
 
-  if (!isConnected || !address) return null;
+  // Mirrors EnableTradingButton's own guard: `null` = allowances still
+  // loading (this button stays up through that window, same as before this
+  // split existed), only an explicit `false` hands the slot over to it.
+  if (!isConnected || !address || tradingEnabled === false) return null;
 
   return (
     <>
