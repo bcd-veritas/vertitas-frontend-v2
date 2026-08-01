@@ -1,8 +1,8 @@
 import type { BookLevel } from "@/lib/markets/types";
 
-/** API fixed-point scales: price 1e8 == 100% == $1; quantity 1e8 == 1 share. */
-const PRICE_SCALE = 1e8;
-const QTY_SCALE = 1e8;
+/** API fixed-point scales: price 1e6 == 100% == $1; quantity 1e6 == 1 share. */
+const PRICE_SCALE = 1e6;
+const QTY_SCALE = 1e6;
 
 export type WalkResult = {
   /** Shares bought/sold. */
@@ -85,8 +85,8 @@ export function bookDepthShares(bids: BookLevel[]): number {
   return bids.reduce((sum, l) => sum + Number(l.quantity) / QTY_SCALE, 0);
 }
 
-/** API price scale: 1e8 == 100% == $1 (string fixed-point). */
-const PRICE_FP = 100_000_000;
+/** API price scale: 1e6 == 100% == $1 (string fixed-point). */
+const PRICE_FP = 1_000_000;
 
 /**
  * Complementary view of a YES book for trading the NO side: buying NO at q

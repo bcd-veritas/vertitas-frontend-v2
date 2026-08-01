@@ -8,21 +8,28 @@ import type { Role } from "@/lib/admin/types";
 const API = process.env.NEXT_PUBLIC_API_URL;
 
 // Fixed-point scales mirror the middleware's shared/utils/fixed-point.ts:
-//   AMOUNT_SCALE 1e8 — shares (⇒ 1 share = 1e8)
-//   PRICE_SCALE  1e8 — 0–1 probability fraction, so 1¢ = 1e6 price units
+//   AMOUNT_SCALE 1e6 — shares (⇒ 1 share = 1e6)
+//   PRICE_SCALE  1e6 — 0–1 probability fraction, so 1¢ = 1e4 price units
 // Everything monetary — order cost, the collateral ledger, and
 // getTotalValueByWallet's notional — is tracked in AMOUNT_SCALE dollars, so
-// $1 = 1e8 (⇒ 1¢ = 1e6).
-const AMOUNT_PER_SHARE = 100_000_000; // 1e8
-const NOTIONAL_PER_DOLLAR = 100_000_000; // 1e8
-const PRICE_PER_CENT = 1_000_000; // 1e6
-const NOTIONAL_PER_CENT = 1_000_000; // 1e6 (1e8 dollars → cents)
+// $1 = 1e6 (⇒ 1¢ = 1e4).
+const AMOUNT_PER_SHARE = 1_000_000; // 1e6
+const PRICE_PER_CENT = 10_000; // 1e4
+const NOTIONAL_PER_CENT = 10_000; // 1e4 (1e6 dollars → cents)
 
 const priceToCents = (p: string): number => Math.round(Number(p) / PRICE_PER_CENT);
 const amountToShares = (a: string): number => Math.round(Number(a) / AMOUNT_PER_SHARE);
 
+// Unrounded counterparts. The two above are for a value that is rendered and
+// then forgotten; anything that feeds arithmetic has to keep its fraction.
+// Rounding first and multiplying after is what made the Positions table sum to
+// $216.96 against a hero of $216.80 — 49.7143 shares became 50, and 77.5862¢
+// became 78¢, in the same row.
+const exactCents = (p: string): number => Number(p) / PRICE_PER_CENT;
+const exactShares = (a: string): number => Number(a) / AMOUNT_PER_SHARE;
+
 // Two deliberate output conventions, both fed by the shared fetch helpers below:
-//   • market-scoped reads (terminal) return RAW 1e8 strings — callers render
+//   • market-scoped reads (terminal) return RAW 1e6 strings — callers render
 //     them with the markets/format helpers;
 //   • profile-table reads return CONVERTED numbers (whole cents / shares).
 
@@ -196,7 +203,7 @@ export async function getAllowances(wallet: string): Promise<Allowances | null> 
   }
 }
 
-/** Ledger balances in dollars (API is 1e8 fixed-point strings). Null = fetch failed. */
+/** Ledger balances in dollars (API is 1e6 fixed-point strings). Null = fetch failed. */
 export async function getCollateralDollars(
   wallet: string,
 ): Promise<{ available: number; locked: number } | null> {
@@ -205,15 +212,15 @@ export async function getCollateralDollars(
     if (!res.ok) return null;
     const data = (await res.json()) as { available: string; locked: string };
     return {
-      available: Number(data.available) / 1e8,
-      locked: Number(data.locked) / 1e8,
+      available: Number(data.available) / 1e6,
+      locked: Number(data.locked) / 1e6,
     };
   } catch {
     return null;
   }
 }
 
-/** A raw position row as the API returns it (amounts are 1e8 strings). */
+/** A raw position row as the API returns it (amounts are 1e6 strings). */
 type PositionDTO = {
   marketId: string;
   outcomeIndex: number;
@@ -262,7 +269,7 @@ export async function getPositionShares(
 }
 
 /** One outcome the wallet holds in a market. `shares`/`averageCost` are raw
- *  1e8 fixed-point strings (reuse markets/format helpers to render). */
+ *  1e6 fixed-point strings (reuse markets/format helpers to render). */
 export type UserMarketPosition = {
   outcomeIndex: number;
   shares: string;
@@ -287,7 +294,7 @@ export async function getUserMarketPositions(
     .filter((p) => BigInt(p.shares) > 0n);
 }
 
-/** One resting order the wallet has in a market. Raw 1e8 strings. */
+/** One resting order the wallet has in a market. Raw 1e6 strings. */
 export type UserMarketOrder = {
   id: string;
   outcomeIndex: number;
@@ -296,7 +303,7 @@ export type UserMarketOrder = {
   remaining: string;
 };
 
-/** A raw order row as the API returns it (amounts/prices are 1e8 strings). */
+/** A raw order row as the API returns it (amounts/prices are 1e6 strings). */
 type OrderDTO = {
   id: string;
   marketId: string;
@@ -379,10 +386,22 @@ export async function cancelUserOrder(
 // shapes so the presentational components need no changes.
 
 export type PortfolioValue = {
-  /** Mark value of all open positions, whole cents. */
+  /** Mark value, in whole cents, of the positions we can honestly price —
+   *  ACTIVE (marked off the live book) and RESOLVED (settled at $1 or $0).
+   *  Deliberately EXCLUDES markets awaiting the oracle: see `resolvingShares`. */
   valueCents: number;
-  /** Unrealized PnL across those positions, whole cents. */
+  /** Cost basis of those same positions. This is the denominator the return
+   *  percentage needs; using the hero total instead diluted a position gain
+   *  across idle cash. */
+  costBasisCents: number;
+  /** Unrealized PnL across those same positions, whole cents. */
   pnlCents: number;
+  /** Shares sitting in markets that have closed and not yet resolved. They are
+   *  worth something, but nothing can say what until the oracle reports, so
+   *  they are counted as shares and never as dollars. */
+  resolvingShares: number;
+  /** Settled, winning, unclaimed positions. */
+  claimableCount: number;
   positions: PositionRow[];
 };
 
@@ -392,12 +411,21 @@ type TotalPositionValueResponse = {
     position: {
       id: string;
       marketId: string;
+      outcomeIndex: number;
       averageCost: string | null;
-      market: { title: string };
+      lockedAmount: string;
+      redeemedAmount: string;
+      market: {
+        title: string;
+        status: PositionRow["status"];
+        winningOutcome: number | null;
+      };
       outcome: { label: string };
     };
     markPrice: string;
     totalAmount: string;
+    /** Per-position mark value, 1e6. Summing these gives `totalValue` exactly. */
+    value: string;
   }[];
 };
 
@@ -409,38 +437,67 @@ type TotalPositionValueResponse = {
 export async function getPortfolioValue(
   wallet: string,
 ): Promise<PortfolioValue> {
-  const empty: PortfolioValue = { valueCents: 0, pnlCents: 0, positions: [] };
+  const empty: PortfolioValue = {
+    valueCents: 0,
+    costBasisCents: 0,
+    pnlCents: 0,
+    resolvingShares: 0,
+    claimableCount: 0,
+    positions: [],
+  };
   try {
     const res = await fetch(`${API}/profiles/${wallet}/total-position-value`);
     if (!res.ok) return empty;
 
     const data = (await res.json()) as TotalPositionValueResponse;
+
     const positions: PositionRow[] = (data.positions ?? []).map((p) => {
-      const curPriceCents = priceToCents(p.markPrice);
+      const { market, outcomeIndex } = p.position;
+      const settled = market.status === "RESOLVED" && market.winningOutcome != null;
+      const won = settled ? market.winningOutcome === outcomeIndex : null;
+      const shares = exactShares(p.totalAmount);
       return {
         id: p.position.id,
         marketId: p.position.marketId,
-        market: p.position.market.title,
+        market: market.title,
         outcome: p.position.outcome.label,
-        shares: amountToShares(p.totalAmount),
-        // No entry price recorded (position fully closed then reopened) → fall
-        // back to mark, so the row shows a flat, not a fabricated, PnL.
+        shares,
+        // Null, not a fallback to mark. Substituting mark used to force the row
+        // to exactly $0.00 PnL, which reads as "flat" when it means "unknown".
         avgCostCents:
-          p.position.averageCost != null
-            ? priceToCents(p.position.averageCost)
-            : curPriceCents,
-        curPriceCents,
+          p.position.averageCost != null ? exactCents(p.position.averageCost) : null,
+        curPriceCents: exactCents(p.markPrice),
+        valueCents: Number(p.value) / NOTIONAL_PER_CENT,
+        status: market.status,
+        won,
+        claimable: won === true && Number(p.position.redeemedAmount) < Number(p.totalAmount),
+        lockedShares: exactShares(p.position.lockedAmount),
       };
     });
 
-    const pnlCents = positions.reduce(
-      (sum, r) => sum + r.shares * (r.curPriceCents - r.avgCostCents),
+    // ENDED = the book is closed and the oracle has not reported. The API marks
+    // those at the best resting ask, and with no ask it falls back to the
+    // position's OWN average cost — so their "value" is either stale or simply
+    // the user's cost echoed back. Neither is a market price, so they are kept
+    // out of the headline figure entirely rather than dressed up as one.
+    const priceable = positions.filter(
+      (r) => r.status === "ACTIVE" || r.status === "RESOLVED",
+    );
+
+    const valueCents = priceable.reduce((sum, r) => sum + r.valueCents, 0);
+    const costBasisCents = priceable.reduce(
+      (sum, r) => sum + (r.avgCostCents == null ? r.valueCents : r.shares * r.avgCostCents),
       0,
     );
 
     return {
-      valueCents: Math.round(Number(data.totalValue) / NOTIONAL_PER_CENT),
-      pnlCents: Math.round(pnlCents),
+      valueCents: Math.round(valueCents),
+      costBasisCents: Math.round(costBasisCents),
+      pnlCents: Math.round(valueCents - costBasisCents),
+      resolvingShares: positions
+        .filter((r) => r.status === "ENDED")
+        .reduce((sum, r) => sum + r.shares, 0),
+      claimableCount: positions.filter((r) => r.claimable).length,
       positions,
     };
   } catch {
@@ -487,7 +544,7 @@ export async function getMarketsTraded(wallet: string): Promise<number> {
   }
 }
 
-/** Lifetime traded notional across all fills, in whole cents (API is a 1e8
+/** Lifetime traded notional across all fills, in whole cents (API is a 1e6
  *  fixed-point string, both sides of each trade counted). 0 on any failure. */
 export async function getVolumeTraded(wallet: string): Promise<number> {
   try {
@@ -563,24 +620,29 @@ type TradeDTO = {
 export async function getTradeHistory(
   wallet: string,
   limit = 50,
-): Promise<ActivityRow[]> {
+): Promise<{ rows: ActivityRow[]; total: number }> {
   try {
     const res = await fetch(
       `${API}/profiles/${wallet}/trades?limit=${limit}`,
     );
-    if (!res.ok) return [];
-    const data = (await res.json()) as { items?: TradeDTO[] };
+    if (!res.ok) return { rows: [], total: 0 };
+    // `total` is the wallet's whole trade count, not the page — the tab uses it
+    // to say when it is showing a slice rather than stopping silently at 50.
+    const data = (await res.json()) as { items?: TradeDTO[]; total?: number };
     const lower = wallet.toLowerCase();
-    return (data.items ?? []).map((t) => ({
+    const rows = (data.items ?? []).map((t) => ({
       id: t.id,
       t: new Date(t.createdAt).getTime(),
-      action: t.buyerWallet.toLowerCase() === lower ? "BOUGHT" : "SOLD",
+      action: (t.buyerWallet.toLowerCase() === lower ? "BOUGHT" : "SOLD") as
+        | "BOUGHT"
+        | "SOLD",
       market: t.market.title,
       outcome: t.outcome.label,
       shares: amountToShares(t.quantity),
       priceCents: priceToCents(t.price),
     }));
+    return { rows, total: data.total ?? rows.length };
   } catch {
-    return [];
+    return { rows: [], total: 0 };
   }
 }

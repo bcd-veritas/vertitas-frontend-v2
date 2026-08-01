@@ -27,10 +27,10 @@ export function RulesPanel({ market }: { market: ApiMarket }) {
       <LeaderRow k="status" v={market.status} />
       <LeaderRow k="resolution_source" v={trunc(market.resolutionSource, 18, 8)} />
       <LeaderRow k="condition_id" v={trunc(market.conditionId)} />
-      <LeaderRow k="tick_size" v={`${oneDp(Number(market.tickSize) / 1_000_000)}¢`} />
+      <LeaderRow k="tick_size" v={`${oneDp(Number(market.tickSize) / 10_000)}¢`} />
       <LeaderRow
         k="min_order"
-        v={`${oneDp(Number(market.minOrderSize) / 100_000_000)} ${Number(market.minOrderSize) === 100_000_000 ? "SHARE" : "SHARES"}`}
+        v={`${oneDp(Number(market.minOrderSize) / 1_000_000)} ${Number(market.minOrderSize) === 1_000_000 ? "SHARE" : "SHARES"}`}
       />
       <LeaderRow k="fee" v={`${market.feeBps} BPS`} />
       <LeaderRow k="settlement" v="VTK" />

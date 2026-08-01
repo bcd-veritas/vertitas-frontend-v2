@@ -3,7 +3,8 @@
 import { useState, type ReactNode } from "react";
 
 import type { FeaturedComment } from "@/lib/markets/types";
-import { Avatar } from "../atoms";
+import type { HoldersMap } from "../../MarketComments";
+import { Avatar, PositionChip } from "../atoms";
 import { Composer } from "./Composer";
 import { timeAgo } from "./time";
 
@@ -45,6 +46,7 @@ export function CommentItem({
   connected,
   isOwner,
   isLiked,
+  holdersMap,
   onLike,
   onReply,
   onEdit,
@@ -55,6 +57,7 @@ export function CommentItem({
   connected: boolean;
   isOwner: boolean;
   isLiked: boolean;
+  holdersMap: HoldersMap;
   onLike: (c: FeaturedComment) => void;
   onReply: (parentId: string, text: string) => Promise<void>;
   onEdit: (c: FeaturedComment, text: string) => Promise<void>;
@@ -80,17 +83,22 @@ export function CommentItem({
     <div className={`flex gap-3 py-3 ${reply ? "ml-10" : ""}`}>
       <Avatar name={name} />
       <div className="min-w-0 flex-1">
-        <p className="font-mono text-[11px] text-muted">
-          <span className="text-fg/85">{name}</span>
-          {wallet && (
-            <>
-              <span className="mx-1.5">·</span>
-              {`${wallet.slice(0, 6)}…${wallet.slice(-4)}`}
-            </>
-          )}
-          <span className="mx-1.5">·</span>
-          <span title={new Date(c.createdAt).toLocaleString()}>
-            {timeAgo(c.createdAt)}
+        <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+          <span className="text-[12.5px] font-medium text-fg">{name}</span>
+          {(() => {
+            const p = c.user ? holdersMap.get(c.user.walletAddress.toLowerCase()) : undefined;
+            return p ? <PositionChip label={p.label} shares={p.shares} /> : null;
+          })()}
+          <span className="font-mono text-[10px] text-muted/75">
+            {wallet && (
+              <>
+                {`${wallet.slice(0, 6)}…${wallet.slice(-4)}`}
+                <span className="mx-1.5">·</span>
+              </>
+            )}
+            <span title={new Date(c.createdAt).toLocaleString()}>
+              {timeAgo(c.createdAt)}
+            </span>
           </span>
         </p>
 
@@ -107,7 +115,7 @@ export function CommentItem({
             onCancel={() => setEditing(false)}
           />
         ) : (
-          <p className="text-sm text-fg/90 mt-1 leading-relaxed whitespace-pre-wrap break-words">
+          <p className="text-[13.5px] leading-relaxed text-fg/90 mt-1 whitespace-pre-wrap break-words">
             {c.content}
           </p>
         )}

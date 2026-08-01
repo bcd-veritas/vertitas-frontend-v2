@@ -7,7 +7,7 @@ import { CreateMarketForm } from "@/components/admin/CreateMarketForm";
 
 export default function CreateMarketPage() {
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-5">
+    <div className="flex w-full flex-col gap-5">
       <header className="reveal-rise relative overflow-hidden border border-line bg-surface/30">
         <div className="dot-grid pointer-events-none absolute inset-0 opacity-40" aria-hidden="true" />
         <div

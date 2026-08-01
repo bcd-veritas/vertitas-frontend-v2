@@ -22,9 +22,9 @@ export const ORDER_TYPES = {
   ],
 } as const;
 
-/** Backend fixed-point scales (shared/utils/fixed-point.ts): 1e8 for both. */
-export const PRICE_SCALE = 100_000_000n;
-export const AMOUNT_SCALE = 100_000_000n;
+/** Backend fixed-point scales (shared/utils/fixed-point.ts): 1e6 for both. */
+export const PRICE_SCALE = 1_000_000n;
+export const AMOUNT_SCALE = 1_000_000n;
 
 /**
  * Must equal the middleware's EXCHANGE_CONTRACT — it is the signing domain's

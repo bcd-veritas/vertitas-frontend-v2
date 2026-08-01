@@ -1,26 +1,32 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAccount } from "wagmi";
 
-import type { ApiOutcome, MarketHolder, MarketTrade } from "@/lib/markets/types";
-import { getMarketTrades, getTopHolders } from "@/lib/markets/data";
+import type { ApiOutcome, MarketHolder, MarketTrade, FeaturedComment } from "@/lib/markets/types";
+import { getMarketComments, getMarketTradesPage, getTopHolders } from "@/lib/markets/data";
+import {
+  getUserMarketOpenOrders,
+  getUserMarketPositions,
+  type UserMarketOrder,
+  type UserMarketPosition,
+} from "@/lib/profile/data";
+import { useUserRoom } from "@/lib/realtime/hooks";
 import { Frame } from "./Frame";
+import { DiscussionTabs } from "./discussion/DiscussionTabs";
 import { HoldersList } from "./discussion/HoldersList";
 import { ActivityList } from "./discussion/ActivityList";
 import { YourPosition } from "./discussion/YourPosition";
 import { CommentsPanel } from "./discussion/comments/CommentsPanel";
 
-type TabId = "comments" | "holders" | "activity" | "yours";
-const TABS: { id: TabId; label: string }[] = [
-  { id: "comments", label: "Comments" },
-  { id: "holders", label: "Top Holders" },
-  { id: "activity", label: "Activity" },
-];
+export type HolderPosition = { label: string; shares: number };
+export type HoldersMap = Map<string, HolderPosition>;
 
-/** The market DISCUSSION panel: a thin tab switcher over Comments (live CRUD),
- *  Top Holders, Activity, and the connected wallet's own position. Each tab
- *  owns its own data; this component only routes between them. */
+type TabId = "comments" | "holders" | "activity" | "yours";
+
+/** First page of the Activity tape. */
+const ACTIVITY_PAGE = 12;
+
 export function MarketComments({
   marketId,
   outcomes,
@@ -28,77 +34,168 @@ export function MarketComments({
 }: {
   marketId: string;
   outcomes: ApiOutcome[];
-  /** Ticks on realtime market-activity signals — refetches the open tab. */
   refreshNonce?: number;
 }) {
-  const { isConnected } = useAccount();
+  const { address, isConnected } = useAccount();
   const [tab, setTab] = useState<TabId>("comments");
+
   const [holders, setHolders] = useState<MarketHolder[] | null>(null);
+  const [holderTotal, setHolderTotal] = useState(0);
   const [trades, setTrades] = useState<MarketTrade[] | null>(null);
+  const [tradeTotal, setTradeTotal] = useState(0);
+  const [comments, setComments] = useState<FeaturedComment[] | null>(null);
+  const [positions, setPositions] = useState<UserMarketPosition[] | null>(null);
+  const [orders, setOrders] = useState<UserMarketOrder[] | null>(null);
 
-  const labelFor = (index: number) =>
-    outcomes.find((o) => o.index === index)?.label ?? `#${index}`;
+  const labelFor = useCallback(
+    (index: number) => outcomes.find((o) => o.index === index)?.label ?? `#${index}`,
+    [outcomes],
+  );
 
-  // "Your Position" only makes sense with a connected wallet.
-  const tabs: { id: TabId; label: string }[] = isConnected
-    ? [...TABS, { id: "yours", label: "Your Position" }]
-    : TABS;
-
-  // Holders/activity fetch lazily on first visit to their tab (and refetch on
-  // every revisit — cheap, and the data goes stale as trades land). The
-  // refreshNonce dep re-pulls an OPEN tab when the socket layer signals
-  // market activity, so trades landing while you watch appear live.
+  // Comments are unaffected by trade activity, and useMarketCommentStream
+  // already delivers create/edit/delete/like live — so this fetches once per
+  // market, never on refreshNonce (a fill cannot change the comment list).
   useEffect(() => {
-    if (tab !== "holders") return;
     let alive = true;
-    getTopHolders(marketId)
-      .then((r) => alive && setHolders(r.items))
-      .catch(() => alive && setHolders([]));
+    getMarketComments(marketId)
+      .then((c) => alive && setComments(c))
+      .catch(() => alive && setComments([]));
     return () => {
       alive = false;
     };
-  }, [tab, marketId, refreshNonce]);
+  }, [marketId]);
 
+  // Mirrors the current trade count without adding `trades` to the effect
+  // below's deps (that would re-arm the debounce on every fetch this effect
+  // itself causes). Updated after render, same idiom as lib/realtime's
+  // useLatest — never touched during render.
+  const tradesRef = useRef<MarketTrade[] | null>(null);
   useEffect(() => {
-    if (tab !== "activity") return;
+    tradesRef.current = trades;
+  }, [trades]);
+
+  const holdersTradesTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Holders + trades DO react to market activity (a fill can change either),
+  // but refreshNonce ticks 1-2x on cold mount and again on every reconnect —
+  // undebounced this burst turns into a request storm and starves the
+  // middleware's rate limiter. Mirrors TerminalPage's refetchBooks/refetchSeries:
+  // a trailing 250ms debounce via a ref timer, cleared on unmount.
+  useEffect(() => {
     let alive = true;
-    getMarketTrades(marketId)
-      .then((t) => alive && setTrades(t))
-      .catch(() => alive && setTrades([]));
+    if (holdersTradesTimer.current) clearTimeout(holdersTradesTimer.current);
+    holdersTradesTimer.current = setTimeout(() => {
+      getTopHolders(marketId, 1, 20).then((r) => {
+        if (!alive) return;
+        setHolders(r.items);
+        setHolderTotal(r.total);
+      });
+      // Preserve any pages the user already loaded via "load more" instead of
+      // snapping the visible list back to the first page.
+      const limit = Math.max(ACTIVITY_PAGE, tradesRef.current?.length ?? 0);
+      getMarketTradesPage(marketId, 1, limit).then((r) => {
+        if (!alive) return;
+        setTrades(r.items);
+        setTradeTotal(r.total);
+      });
+    }, 250);
+    return () => {
+      alive = false;
+      if (holdersTradesTimer.current) clearTimeout(holdersTradesTimer.current);
+    };
+  }, [marketId, refreshNonce]);
+
+  // The wallet's own stake. Lifted out of YourPosition so the tab bar can show
+  // its dot without opening the tab — these are the same two calls that
+  // component used to make on first visit, relocated rather than added.
+  // Keyed on [address, marketId] only: useUserRoom below already fires on
+  // every fill/cancel/settlement for this wallet, so keying this on
+  // refreshNonce too would double-fetch on every one of the wallet's own fills.
+  useEffect(() => {
+    let alive = true;
+    if (!address) {
+      Promise.resolve().then(() => {
+        if (!alive) return;
+        setPositions(null);
+        setOrders(null);
+      });
+      return () => {
+        alive = false;
+      };
+    }
+    getUserMarketPositions(address, marketId).then((p) => alive && setPositions(p));
+    getUserMarketOpenOrders(address, marketId).then((o) => alive && setOrders(o));
     return () => {
       alive = false;
     };
-  }, [tab, marketId, refreshNonce]);
+  }, [address, marketId]);
+
+  // Fills, cancels and settlement all signal the wallet's room.
+  useUserRoom(isConnected ? address : null, () => {
+    if (!address) return;
+    getUserMarketPositions(address, marketId).then(setPositions);
+    getUserMarketOpenOrders(address, marketId).then(setOrders);
+  });
+
+  // One reduction of the holders response, used by the comments list for its
+  // position chips — the same fetch serving two tabs, never a second request.
+  const holdersMap = useMemo<HoldersMap>(() => {
+    const m: HoldersMap = new Map();
+    for (const h of holders ?? []) {
+      const key = h.walletAddress.toLowerCase();
+      const shares =
+        Number(BigInt(h.availableAmount) + BigInt(h.lockedAmount)) / 1e6;
+      const prev = m.get(key);
+      // A wallet can hold both sides; the chip shows the larger holding.
+      if (!prev || shares > prev.shares) m.set(key, { label: labelFor(h.outcomeIndex), shares });
+    }
+    return m;
+  }, [holders, labelFor]);
+
+  const hasStake = (positions?.length ?? 0) > 0 || (orders?.length ?? 0) > 0;
+
+  const tabs: { id: string; label: string; count?: number; dot?: boolean }[] = [
+    { id: "comments", label: "Comments", count: comments?.length ?? 0 },
+    { id: "holders", label: "Top Holders", count: holderTotal },
+    { id: "activity", label: "Activity", count: tradeTotal },
+    ...(isConnected
+      ? [{ id: "yours", label: "Your Position", dot: hasStake }]
+      : []),
+  ];
 
   return (
     <Frame label="DISCUSSION" ariaLabel="Market discussion">
-      <div role="tablist" aria-label="Sections" className="flex items-center gap-1 px-4 border-b border-line">
-        {tabs.map(({ id, label }) => {
-          const on = tab === id;
-          return (
-            <button
-              key={id}
-              role="tab"
-              aria-selected={on}
-              onClick={() => setTab(id)}
-              className={`relative px-3 py-2.5 font-mono text-[11px] uppercase tracking-[0.14em] transition-colors ${
-                on ? "text-fg" : "text-muted hover:text-fg/80"
-              }`}
-            >
-              {label}
-              {on && (
-                <span aria-hidden="true" className="absolute -bottom-px left-2 right-2 h-[2px] bg-accent" />
-              )}
-            </button>
-          );
-        })}
-      </div>
-
+      <DiscussionTabs tabs={tabs} active={tab} onSelect={(id) => setTab(id as TabId)} />
       <div className="px-5 py-2">
-        {tab === "comments" && <CommentsPanel marketId={marketId} />}
-        {tab === "holders" && <HoldersList holders={holders} labelFor={labelFor} />}
-        {tab === "activity" && <ActivityList trades={trades} labelFor={labelFor} />}
-        {tab === "yours" && <YourPosition marketId={marketId} labelFor={labelFor} />}
+        {tab === "comments" && (
+          <CommentsPanel
+            marketId={marketId}
+            comments={comments}
+            holdersMap={holdersMap}
+            onCommentsChange={setComments}
+          />
+        )}
+        {tab === "holders" && <HoldersList holders={holders} outcomes={outcomes} labelFor={labelFor} />}
+        {tab === "activity" && (
+          <ActivityList
+            marketId={marketId}
+            trades={trades}
+            total={tradeTotal}
+            labelFor={labelFor}
+            onMore={setTrades}
+          />
+        )}
+        {tab === "yours" && (
+          <YourPosition
+            marketId={marketId}
+            labelFor={labelFor}
+            positions={positions}
+            orders={orders}
+            onOrdersChange={setOrders}
+            onPositionsChange={setPositions}
+            outcomes={outcomes}
+          />
+        )}
       </div>
     </Frame>
   );

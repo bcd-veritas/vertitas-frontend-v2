@@ -387,7 +387,7 @@ input.date-input:focus::-webkit-calendar-picker-indicator {
     opacity: var(--o);
   }
   45% {
-    opacity: calc(var(--o) * 0.18);
+    opacity: calc(var(--o) * 0.5);
   }
 }
 .mass-star {
