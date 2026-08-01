@@ -11,11 +11,13 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export const CREDENTIALS_TITLE = "YOUR PROFILE";
 export const CREDENTIALS_SUBTITLE =
-  "Pick a public handle and (optionally) an email for notifications.";
+  "Pick a public handle, plus (optionally) an email for notifications.";
 
 /**
- * Step 1 — profile. Sets username/email against the middleware. Optional: the
- * user can skip. `onBusyChange` lets the shell lock itself while saving.
+ * Step 1 — profile. Username is required to save (email is optional); the
+ * user can still Skip the whole step without saving anything, which just
+ * means the wizard offers it again next time. `onBusyChange` lets the shell
+ * lock itself while saving.
  */
 export function CredentialsStep({
   address,
@@ -35,11 +37,26 @@ export function CredentialsStep({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Async-loaded `identity` can arrive after this step has already mounted
+  // (the wizard can auto-open before the identity query resolves) — a plain
+  // useState initial value would miss it. Resync during render, the
+  // `prevOpen`-style idiom used elsewhere in this codebase.
+  const [prevIdentity, setPrevIdentity] = useState(identity);
+  if (identity !== prevIdentity) {
+    setPrevIdentity(identity);
+    setUsername(identity?.username ?? "");
+    setEmail(identity?.email ?? "");
+  }
+
   const trimmedUsername = username.trim();
   const trimmedEmail = email.trim();
-  const usernameInvalid = trimmedUsername !== "" && !USERNAME_RE.test(trimmedUsername);
+  // Empty is "nothing typed yet", not wrong — only a malformed non-empty
+  // value gets the red/invalid treatment. The blank Save-button-disabled
+  // state carries the "this is required" signal instead.
+  const usernameEmpty = trimmedUsername === "";
+  const usernameInvalid = !usernameEmpty && !USERNAME_RE.test(trimmedUsername);
   const emailInvalid = trimmedEmail !== "" && !EMAIL_RE.test(trimmedEmail);
-  const canSave = !saving && !usernameInvalid && !emailInvalid;
+  const canSave = !saving && !usernameEmpty && !usernameInvalid && !emailInvalid;
 
   function setBusy(busy: boolean) {
     setSaving(busy);
@@ -56,7 +73,8 @@ export function CredentialsStep({
       // saves here. Await it first so `update` never 404s on a missing row.
       await ensureAccount(address);
       const saved = await updateUserIdentity(address, {
-        username: trimmedUsername === "" ? null : trimmedUsername,
+        // canSave already guarantees a non-empty username.
+        username: trimmedUsername,
         email: trimmedEmail === "" ? null : trimmedEmail,
       });
       onSaved?.(saved);
@@ -73,7 +91,9 @@ export function CredentialsStep({
       <ModalBody>
         <div>
           <label htmlFor="onb-username" className="mb-2 block">
-            <MonoLabel>username</MonoLabel>
+            <MonoLabel>
+              username <span className="text-accent">*</span>
+            </MonoLabel>
           </label>
           <input
             id="onb-username"
@@ -82,12 +102,14 @@ export function CredentialsStep({
             placeholder="your public handle"
             autoComplete="off"
             spellCheck={false}
+            required
+            aria-required="true"
             className={`w-full border-b bg-transparent py-2 text-sm text-fg transition-colors placeholder:text-muted/40 focus-visible:outline-none ${usernameInvalid ? "border-no" : "border-line focus:border-accent"}`}
           />
           <p
             className={`mt-1.5 font-mono text-[10px] uppercase tracking-widest ${usernameInvalid ? "text-no" : "text-muted/60"}`}
           >
-            3–24 chars · letters, numbers, _ . —
+            required · 3–24 chars · letters, numbers, _ . —
           </p>
         </div>
 

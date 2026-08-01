@@ -43,7 +43,9 @@ export function OnboardingFlow({
   const [step, setStep] = useState<Step | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const credDone = Boolean(identity?.email);
+  // ensureAccount no longer auto-generates a username, so this is a real
+  // server-backed signal — no client-side heuristic needed.
+  const credDone = Boolean(identity?.username);
   const vtkApproved =
     deposit.vtkAllowanceToExchange != null && deposit.vtkAllowanceToExchange > 0n;
   const usdccApproved = deposit.allowance != null && deposit.allowance > 0n;

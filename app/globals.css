@@ -431,6 +431,59 @@ button:disabled,
   }
 }
 
+/* Topbar — Enable trading CTA. This is the one action every connected wallet
+   without trading enabled needs to notice, so unlike the rest of the account
+   cluster it doesn't sit still: a slow breathing glow times its peak to a
+   spark in the Zap icon, like a charge building toward a discharge — echoes
+   the electric metaphor already in the icon rather than adding a new one.
+   Paused on hover/focus: once it has the user's attention, it stops asking. */
+@keyframes enable-trading-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(246, 220, 212, 0);
+  }
+  50% {
+    box-shadow:
+      0 0 0 3px rgba(246, 220, 212, 0.1),
+      0 0 12px 1px rgba(246, 220, 212, 0.3);
+  }
+}
+.enable-trading-pulse {
+  animation: enable-trading-glow 3.2s ease-in-out infinite;
+}
+.enable-trading-pulse:hover,
+.enable-trading-pulse:focus-visible {
+  animation-play-state: paused;
+}
+
+@keyframes enable-trading-spark {
+  0%,
+  42%,
+  58%,
+  100% {
+    filter: none;
+    opacity: 0.85;
+  }
+  50% {
+    filter: drop-shadow(0 0 3px rgba(246, 220, 212, 0.9));
+    opacity: 1;
+  }
+}
+.enable-trading-spark {
+  animation: enable-trading-spark 3.2s ease-in-out infinite;
+}
+.enable-trading-pulse:hover .enable-trading-spark,
+.enable-trading-pulse:focus-visible .enable-trading-spark {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .enable-trading-pulse,
+  .enable-trading-spark {
+    animation: none;
+  }
+}
+
 /* Themed date/datetime picker icon (Chromium/Safari). Replaces the default
    black calendar glyph in the input with a custom accent-tinted SVG, dimmed
    until hover/focus. The native popup is left at the browser default (no
