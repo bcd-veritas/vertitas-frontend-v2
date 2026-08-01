@@ -41,7 +41,7 @@ const fmt = (v: bigint) =>
 /**
  * Combined funds modal for the topbar: wallet balance strip (on-chain USDCC +
  * VTK) over Deposit / Withdraw tabs. The onboarding wizard keeps its own
- * single-purpose DepositModal — this is the standalone manage-funds surface.
+ * single-purpose deposit step — this is the standalone manage-funds surface.
  * Both tabs share one useDepositState so the strip and each form read the same
  * live balances.
  */
@@ -166,7 +166,7 @@ export function WalletModal({
 /**
  * USDCC → VTK. Two explicit steps when allowance is short (approve, then
  * deposit), then a backend sync so the ledger's available balance mirrors the
- * wallet's new VTK. Mirrors the onboarding DepositModal, kept independent so
+ * wallet's new VTK. Mirrors the onboarding deposit step, kept independent so
  * that proven flow is never touched.
  */
 function DepositTab({

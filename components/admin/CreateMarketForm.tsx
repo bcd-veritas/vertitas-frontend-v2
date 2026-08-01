@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { Frame } from "@/components/terminal/Frame";
+import { ProgressModal, stepsFromIndex } from "@/components/common/ProgressModal";
 import { getMarketCategories } from "@/lib/markets/data";
 import {
   Field,
@@ -258,132 +259,6 @@ async function readSseStream(
   }
 }
 
-/** Live stepper modal driven by the create-market SSE stream. `activeIndex` is
- *  the in-flight step; everything before it is done, everything after pending.
- *  On success all steps read done; on error the active step reads failed. */
-function CreateMarketProgressModal({
-  phase,
-  activeIndex,
-  message,
-  summary,
-  onClose,
-}: {
-  phase: StepPhase;
-  activeIndex: number;
-  message: string | null;
-  /** Rendered under the steps on success — a recap of the created market. */
-  summary?: ReactNode;
-  onClose: () => void;
-}) {
-  if (phase == null) return null;
-  const done = phase === "success";
-  const failed = phase === "error";
-
-  return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="Creating market"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-bg/75 p-4"
-    >
-      <div className="w-full max-w-md border border-line bg-surface p-6 font-mono">
-        <p className="font-pixel text-lg uppercase tracking-wide text-fg">
-          {done
-            ? "market created"
-            : failed
-              ? "creation failed"
-              : "creating market"}
-        </p>
-        <p className="mt-1 text-[11px] uppercase tracking-[0.14em] text-muted/70">
-          {done
-            ? "all steps complete"
-            : failed
-              ? "stopped — nothing left half-created past this point"
-              : "running on-chain + off-chain steps…"}
-        </p>
-
-        <ol className="mt-5 flex flex-col gap-2.5">
-          {CREATE_STEPS.map((step, i) => {
-            const state =
-              done || i < activeIndex
-                ? "done"
-                : failed && i === activeIndex
-                  ? "failed"
-                  : i === activeIndex
-                    ? "active"
-                    : "pending";
-            return (
-              <li key={step.id} className="flex items-center gap-3">
-                <span
-                  className={`flex h-4 w-4 shrink-0 items-center justify-center text-[10px] ${
-                    state === "done"
-                      ? "text-yes"
-                      : state === "failed"
-                        ? "text-no"
-                        : state === "active"
-                          ? "text-accent"
-                          : "text-muted/40"
-                  }`}
-                >
-                  {state === "done" ? (
-                    "✓"
-                  ) : state === "failed" ? (
-                    "✕"
-                  ) : state === "active" ? (
-                    <span className="h-2.5 w-2.5 animate-spin rounded-full border border-accent border-t-transparent" />
-                  ) : (
-                    "○"
-                  )}
-                </span>
-                <span
-                  className={`text-[12px] tracking-[0.02em] ${
-                    state === "pending"
-                      ? "text-muted/45"
-                      : state === "active"
-                        ? "text-fg"
-                        : state === "failed"
-                          ? "text-no"
-                          : "text-fg/70"
-                  }`}
-                >
-                  {step.label}
-                </span>
-              </li>
-            );
-          })}
-        </ol>
-
-        {failed && message && (
-          <p className="mt-4 border-t border-line/60 pt-3 text-[11px] leading-relaxed text-no">
-            {message}
-          </p>
-        )}
-
-        {done && summary && (
-          <div className="mt-4 border-t border-line/60 pt-4">
-            <p className="mb-2.5 text-[10px] uppercase tracking-[0.16em] text-muted/60">
-              summary
-            </p>
-            {summary}
-          </div>
-        )}
-
-        {(done || failed) && (
-          <div className="mt-5 flex justify-end">
-            <button
-              type="button"
-              onClick={onClose}
-              className="border border-line px-4 py-1.5 text-[12px] uppercase tracking-[0.14em] text-muted transition-colors hover:text-fg"
-            >
-              Close
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
 const WIZARD_STEPS = [
   { title: "Definition", desc: "Basic details & category" },
   { title: "Timing & Economics", desc: "Close date & liquidity" },
@@ -474,6 +349,10 @@ export function CreateMarketForm() {
   };
 
   const successSummary = result?.ok ? (
+    <>
+    <p className="mb-2.5 text-[10px] uppercase tracking-[0.16em] text-muted/60">
+      summary
+    </p>
     <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-[12px]">
       <dt className="text-muted/70">Title</dt>
       <dd className="truncate text-right text-fg">{f.title || "—"}</dd>
@@ -509,6 +388,7 @@ export function CreateMarketForm() {
         {shortHex(created?.marketAddress)}
       </dd>
     </dl>
+    </>
   ) : null;
 
   const onSubmit = async (ev: React.FormEvent) => {
@@ -940,9 +820,21 @@ export function CreateMarketForm() {
         </details>
       ) : null}
 
-      <CreateMarketProgressModal
+      <ProgressModal
         phase={stepPhase}
-        activeIndex={stepIndex}
+        steps={
+          stepPhase ? stepsFromIndex(CREATE_STEPS, stepIndex, stepPhase) : []
+        }
+        title={{
+          running: "creating market",
+          success: "market created",
+          error: "creation failed",
+        }}
+        caption={{
+          running: "running on-chain + off-chain steps…",
+          success: "all steps complete",
+          error: "stopped — nothing left half-created past this point",
+        }}
         message={result && !result.ok ? result.message : null}
         summary={successSummary}
         onClose={closeStepModal}

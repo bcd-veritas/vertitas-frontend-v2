@@ -13,11 +13,16 @@ import { WalletButton } from "../deposit/WalletButton";
 import { EnableTradingButton } from "../deposit/EnableTradingButton";
 import { RollingNumber } from "../profile/RollingNumber";
 
-/** Off-chain ledger balances beside the profile pill — available (spendable)
- *  and locked (held by resting orders). These are the DB collateral columns,
- *  NOT on-chain VTK; MetaMask does not reflect them. Rendered as a borderless
- *  stat readout rather than a pill. */
-function CollateralReadout() {
+/**
+ * The connected wallet's cluster: off-chain ledger balances — available
+ * (spendable) and locked (held by resting orders) — then a hairline, then the
+ * actions. These balances are the DB collateral columns, NOT on-chain VTK;
+ * MetaMask does not reflect them.
+ *
+ * The buttons sit outside the balance block on purpose. That block is
+ * desktop-only and waits on a fetch; the actions must not.
+ */
+function AccountCluster() {
   const { address, isConnected } = useAccount();
   const [collateral, setCollateral] = useState<{
     available: number;
@@ -43,38 +48,44 @@ function CollateralReadout() {
 
   useUserRoom(isConnected ? address : null, refresh);
 
-  if (!isConnected || !address || !collateral) return null;
+  if (!isConnected || !address) return null;
 
   return (
-    <div className="hidden sm:flex items-center gap-3 shrink-0">
-      <span className="flex flex-col items-end gap-0.5 leading-none">
-        <MonoLabel className="text-[9px]! tracking-[0.16em]">Available</MonoLabel>
-        {/* RollingNumber animates the digits when a placed order (or any
-            balance change) shifts the ledger — the "money moved" cue. */}
-        <RollingNumber
-          value={collateral.available}
-          currency
-          decimals={2}
-          className="font-mono text-xs text-accent"
-        />
-      </span>
-      <span className="flex flex-col items-end gap-0.5 leading-none">
-        <MonoLabel className="text-[9px]! tracking-[0.16em]">Locked</MonoLabel>
-        <RollingNumber
-          value={collateral.locked}
-          currency
-          decimals={2}
-          className="font-mono text-xs text-fg/60"
-        />
-      </span>
-      {/* One-time VTK→Exchange approval; self-hides once granted. */}
+    <div className="flex shrink-0 items-center gap-3 sm:gap-3.5">
+      {collateral && (
+        <>
+          <div className="hidden items-center gap-3 sm:flex">
+            <span className="flex flex-col items-end gap-0.5 leading-none">
+              <MonoLabel className="text-[9px]! tracking-[0.16em]">Available</MonoLabel>
+              {/* RollingNumber animates the digits when a placed order (or any
+                  balance change) shifts the ledger — the "money moved" cue. */}
+              <RollingNumber
+                value={collateral.available}
+                currency
+                decimals={2}
+                className="font-mono text-xs text-accent"
+              />
+            </span>
+            <span className="flex flex-col items-end gap-0.5 leading-none">
+              <MonoLabel className="text-[9px]! tracking-[0.16em]">Locked</MonoLabel>
+              <RollingNumber
+                value={collateral.locked}
+                currency
+                decimals={2}
+                className="font-mono text-xs text-fg/60"
+              />
+            </span>
+          </div>
+          {/* Separates what the account *is* from what you can *do* with it. */}
+          <span aria-hidden="true" className="hidden h-5 w-px bg-line sm:block" />
+        </>
+      )}
+
+      {/* Setup task — self-hides once trading is enabled. */}
       <EnableTradingButton />
-      {/* Reuses the same refresh the realtime socket drives, so the readout
-          above updates the moment a deposit or withdrawal settles. */}
-      <WalletButton
-        onChanged={refresh}
-        className="pill pill-solid py-1.5! px-3! text-[11px] font-mono uppercase tracking-wider shrink-0 cursor-pointer"
-      />
+      {/* Reuses the same refresh the realtime socket drives, so the balances
+          update the moment a deposit or withdrawal settles. */}
+      <WalletButton onChanged={refresh} />
     </div>
   );
 }
@@ -88,7 +99,9 @@ function ConnectButton() {
       <button
         type="button"
         onClick={openConnectModal}
-        className="pill pill-ghost py-1.5! px-4! text-xs font-mono uppercase tracking-wider shrink-0"
+        // `text-xs!` is deliberate: `.pill` sets its own font-size and, being
+        // defined after Tailwind's utilities, wins any un-flagged size class.
+        className="pill pill-ghost h-7 shrink-0 px-4! font-mono text-xs! uppercase tracking-wider"
       >
         Connect
       </button>
@@ -101,9 +114,9 @@ function ConnectButton() {
     <Link
       href="/profile"
       aria-label="Open profile"
-      className="pill pill-ghost py-1.5! px-4! text-xs font-mono uppercase tracking-wider inline-flex items-center gap-2 shrink-0"
+      className="pill pill-ghost inline-flex h-7 shrink-0 items-center gap-2 px-3.5! font-mono text-xs! uppercase tracking-wider"
     >
-      <GradientAvatar seed={address} size={18} />
+      <GradientAvatar seed={address} size={16} />
       {short}
     </Link>
   );
@@ -146,7 +159,7 @@ export function Topbar({
           <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" aria-hidden="true" />
           <MonoLabel>markets.online</MonoLabel>
         </span> */}
-        <CollateralReadout />
+        <AccountCluster />
         <ConnectButton />
       </div>
     </header>

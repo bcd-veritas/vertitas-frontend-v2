@@ -313,6 +313,72 @@ button:disabled,
   animation: pulse-dot 2.2s ease-in-out infinite;
 }
 
+/* Onboarding — each step's header + body slides in from the right as the wizard
+   advances, so a step change reads as forward motion rather than a swap. */
+@keyframes step-advance {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+.step-advance {
+  animation: step-advance 0.36s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Onboarding rail — a light runs the completed length, start to current step,
+   and a lit head sits at the boundary. The head's `left` is transitioned, so
+   advancing a step sends the glow travelling forward to its new position. */
+@keyframes rail-flow {
+  from {
+    background-position: -140% 0;
+  }
+  to {
+    background-position: 260% 0;
+  }
+}
+.rail-flow {
+  /* Kept off pure white so the accent still reads as the bar's colour — this
+     is a highlight travelling over it, not a repaint. */
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.5) 50%,
+    transparent 100%
+  );
+  background-size: 55% 100%;
+  background-repeat: no-repeat;
+  animation: rail-flow 2.8s ease-in-out infinite;
+}
+
+/* Soft bloom under the completed length, so it reads as lit rather than
+   merely filled. Sits on the clipping container — a box-shadow escapes
+   `overflow: hidden`, only the children are clipped. */
+.rail-lit {
+  box-shadow: 0 0 10px 0 rgba(246, 220, 212, 0.35);
+}
+
+@keyframes rail-head {
+  0%,
+  100% {
+    box-shadow:
+      0 0 6px 1px rgba(246, 220, 212, 0.85),
+      0 0 14px 3px rgba(246, 220, 212, 0.3);
+  }
+  50% {
+    box-shadow:
+      0 0 4px 1px rgba(246, 220, 212, 0.55),
+      0 0 10px 2px rgba(246, 220, 212, 0.15);
+  }
+}
+.rail-head {
+  animation: rail-head 2.4s ease-in-out infinite;
+  transition: left 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .reveal-rise {
     animation: none;
@@ -321,6 +387,20 @@ button:disabled,
   }
   .pulse-dot {
     animation: none;
+  }
+  .step-advance {
+    animation: none;
+  }
+  .rail-flow {
+    animation: none;
+    background-image: none;
+  }
+  .rail-lit {
+    box-shadow: none;
+  }
+  .rail-head {
+    animation: none;
+    transition: none;
   }
 }
 

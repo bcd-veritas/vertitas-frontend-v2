@@ -1,22 +1,30 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 
 import type { UserIdentity } from "@/lib/profile/data";
 import { useDepositState } from "@/lib/deposit/useDepositState";
-import { DepositModal } from "../deposit/DepositModal";
-import { ApproveTokenModal } from "./ApproveTokenModal";
-import { CredentialsModal } from "./CredentialsModal";
-import { EnableTradingModal } from "./EnableTradingModal";
+import { CredentialsStep, CREDENTIALS_SUBTITLE, CREDENTIALS_TITLE } from "./CredentialsStep";
+import { DepositStep, DEPOSIT_SUBTITLE, DEPOSIT_TITLE } from "./DepositStep";
+import { EnableTradingStep, ENABLE_SUBTITLE, ENABLE_TITLE } from "./EnableTradingStep";
+import { ModalShell } from "./ModalShell";
 
-type Step = "credentials" | "enable" | "approve" | "deposit";
-const ORDER: Step[] = ["credentials", "enable", "approve", "deposit"];
+type Step = "credentials" | "enable" | "deposit";
+const ORDER: Step[] = ["credentials", "enable", "deposit"];
+/** Rail labels, index-aligned with ORDER. */
+const STEP_NAMES = ["profile", "enable trading", "deposit"] as const;
+
+const HEADINGS: Record<Step, { title: string; subtitle: string }> = {
+  credentials: { title: CREDENTIALS_TITLE, subtitle: CREDENTIALS_SUBTITLE },
+  enable: { title: ENABLE_TITLE, subtitle: ENABLE_SUBTITLE },
+  deposit: { title: DEPOSIT_TITLE, subtitle: DEPOSIT_SUBTITLE },
+};
 
 /**
- * Sequences the four onboarding modals — one open at a time — starting at the
- * first step the wallet hasn't completed, and skipping any already-satisfied
- * step as it advances. Each modal is also usable on its own; this just chains
- * them for a new user. Closing any modal dismisses the whole flow.
+ * Sequences onboarding inside a single dialog — the panel and its progress rail
+ * persist while the heading, body and footer swap per step. Starts at the first
+ * step the wallet hasn't completed and skips any already-satisfied step as it
+ * advances. Closing dismisses the whole flow.
  */
 export function OnboardingFlow({
   active,
@@ -33,9 +41,9 @@ export function OnboardingFlow({
 }) {
   const deposit = useDepositState();
   const [step, setStep] = useState<Step | null>(null);
+  const [busy, setBusy] = useState(false);
 
   const credDone = Boolean(identity?.email);
-  const funded = deposit.usdccBalance != null && deposit.usdccBalance > 0n;
   const vtkApproved =
     deposit.vtkAllowanceToExchange != null && deposit.vtkAllowanceToExchange > 0n;
   const usdccApproved = deposit.allowance != null && deposit.allowance > 0n;
@@ -44,31 +52,36 @@ export function OnboardingFlow({
     switch (s) {
       case "credentials":
         return credDone;
+      // Deliberately not gated on the wallet holding USDCC: the operator top-up
+      // is a convenience that can fail, and trading is enabled by the approvals
+      // alone. Gating on it would re-open this wizard forever.
       case "enable":
-        return funded && vtkApproved;
-      case "approve":
-        return usdccApproved;
+        return usdccApproved && vtkApproved;
       case "deposit":
         return false; // terminal action — no persistent "done" signal
     }
   };
 
-  // On activation, open the first step the wallet hasn't completed.
-  useEffect(() => {
-    if (!active) {
-      setStep(null);
-      return;
-    }
-    setStep(ORDER.find((s) => !isDone(s)) ?? null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active]);
+  // On activation, open the first step the wallet hasn't completed. Adjusted
+  // during render rather than in an effect (the codebase's `prevOpen` idiom) so
+  // the wizard never paints a frame on the wrong step.
+  const [prevActive, setPrevActive] = useState(active);
+  if (active !== prevActive) {
+    setPrevActive(active);
+    setStep(active ? (ORDER.find((s) => !isDone(s)) ?? null) : null);
+  }
+
+  // Identity-stable so the steps' onBusyChange effects don't re-fire every render.
+  const handleBusy = useCallback((b: boolean) => setBusy(b), []);
 
   function finish() {
+    setBusy(false);
     setStep(null);
     onDismiss();
   }
 
   function advance(from: Step) {
+    setBusy(false);
     for (let i = ORDER.indexOf(from) + 1; i < ORDER.length; i++) {
       const s = ORDER[i];
       if (s === "deposit" || !isDone(s)) {
@@ -79,32 +92,48 @@ export function OnboardingFlow({
     finish();
   }
 
+  // Keep the last step rendered while the dialog animates out, so the panel
+  // doesn't blank mid-transition.
+  const [lastStep, setLastStep] = useState<Step>("credentials");
+  if (step && step !== lastStep) setLastStep(step);
+
+  const heading = HEADINGS[lastStep];
+
   return (
-    <>
-      <CredentialsModal
-        open={step === "credentials"}
-        onClose={finish}
-        address={address}
-        identity={identity}
-        onSaved={onIdentitySaved}
-        onDone={() => advance("credentials")}
-      />
-      <EnableTradingModal
-        open={step === "enable"}
-        onClose={finish}
-        onDone={() => advance("enable")}
-      />
-      <ApproveTokenModal
-        open={step === "approve"}
-        onClose={finish}
-        onDone={() => advance("approve")}
-      />
-      <DepositModal
-        open={step === "deposit"}
-        onClose={finish}
-        isVoter={false}
-        onDeposited={finish}
-      />
-    </>
+    <ModalShell
+      open={step != null}
+      onClose={finish}
+      dismissible={!busy}
+      steps={STEP_NAMES}
+      stepIndex={ORDER.indexOf(lastStep)}
+      title={heading.title}
+      subtitle={heading.subtitle}
+    >
+      {/* Keyed on the step so each one's body replays the slide-in. */}
+      <div key={lastStep} className="step-advance flex min-h-0 flex-col">
+        {lastStep === "credentials" && (
+          <CredentialsStep
+            address={address}
+            identity={identity}
+            onSaved={onIdentitySaved}
+            onDone={() => advance("credentials")}
+            onBusyChange={handleBusy}
+          />
+        )}
+        {lastStep === "enable" && (
+          <EnableTradingStep
+            onDone={() => advance("enable")}
+            onBusyChange={handleBusy}
+          />
+        )}
+        {lastStep === "deposit" && (
+          <DepositStep
+            onDeposited={finish}
+            onClose={finish}
+            onBusyChange={handleBusy}
+          />
+        )}
+      </div>
+    </ModalShell>
   );
 }

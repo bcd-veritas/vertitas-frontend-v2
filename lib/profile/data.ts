@@ -16,6 +16,7 @@ const API = process.env.NEXT_PUBLIC_API_URL;
 const AMOUNT_PER_SHARE = 1_000_000; // 1e6
 const PRICE_PER_CENT = 10_000; // 1e4
 const NOTIONAL_PER_CENT = 10_000; // 1e4 (1e6 dollars → cents)
+const NOTIONAL_PER_DOLLAR = 1_000_000; // 1e6 (was 1e8 before the 1e6 migration)
 
 const priceToCents = (p: string): number => Math.round(Number(p) / PRICE_PER_CENT);
 const amountToShares = (a: string): number => Math.round(Number(a) / AMOUNT_PER_SHARE);
@@ -169,8 +170,11 @@ export type EnableTradingResult = {
 export async function enableTrading(wallet: string): Promise<EnableTradingResult> {
   // No body — the wallet comes from the URL. Sending a JSON content-type with an
   // empty body makes Fastify reject it ("Body cannot be empty …"), so omit it.
+  // The server awaits a Sepolia receipt before replying, so this is slow by
+  // design; the deadline only exists so a stuck tx can't hang the caller.
   const res = await fetch(`${API}/users/${wallet}/enable-trading`, {
     method: "POST",
+    signal: AbortSignal.timeout(90_000),
   });
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as {
@@ -511,7 +515,9 @@ export type PnlPoint = { t: number; usd: number };
  * The wallet's PnL time-series for the profile chart. Historical points are
  * cumulative realized PnL per day; the terminal point folds in current
  * unrealized, so the line ends at the same total the hero PnL shows. The API's
- * `pnl` is a 1e8 fixed-point dollar string. Empty array on any failure or for a
+ * `pnl` is a 1e6 fixed-point dollar string — it comes out of the middleware's
+ * `calculateFixedPointCost` (quantity × price ÷ PRICE_SCALE), so it carries the
+ * same AMOUNT_SCALE as every other monetary field. Empty array on any failure or for a
  * wallet with no trading history — the chart then simply renders nothing.
  */
 export async function getPnlSeries(wallet: string): Promise<PnlPoint[]> {
