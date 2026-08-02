@@ -207,6 +207,15 @@ export async function getAllowances(wallet: string): Promise<Allowances | null> 
   }
 }
 
+/**
+ * Shared TanStack query key for the topbar's collateral readout — exported so
+ * anything that changes a wallet's ledger balance (a deposit, a withdrawal)
+ * can invalidate the exact same cache entry `AccountBalances` reads, instead
+ * of retyping the key by hand in multiple files.
+ */
+export const collateralQueryKey = (wallet: string | undefined) =>
+  ["collateral", wallet] as const;
+
 /** Ledger balances in dollars (API is 1e6 fixed-point strings). Null = fetch failed. */
 export async function getCollateralDollars(
   wallet: string,
@@ -222,6 +231,42 @@ export async function getCollateralDollars(
   } catch {
     return null;
   }
+}
+
+/**
+ * Forces a fresh on-chain read before returning — unlike `getCollateralDollars`,
+ * which just reads the DB. Same 1e6 → dollars conversion, same return shape,
+ * so a caller can drop this straight into the `["collateral", wallet]` query
+ * cache in place of a `getCollateralDollars` result. Expensive (an RPC call
+ * server-side): call this from explicit user action only, never from a
+ * passive refresh — see the sync button in `components/app/Topbar.tsx`.
+ */
+export async function syncUserBalances(
+  wallet: string,
+): Promise<{ available: number; locked: number }> {
+  const res = await fetch(`${API}/users/sync-balances`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ walletAddress: wallet }),
+  });
+
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as {
+      message?: string;
+    } | null;
+
+    throw new Error(body?.message ?? `HTTP ${res.status}`);
+  }
+
+  const data = (await res.json()) as {
+    collateralAvailableAmount: string;
+    collateralLockedAmount: string;
+  };
+
+  return {
+    available: Number(data.collateralAvailableAmount) / 1e6,
+    locked: Number(data.collateralLockedAmount) / 1e6,
+  };
 }
 
 /** A raw position row as the API returns it (amounts are 1e6 strings). */

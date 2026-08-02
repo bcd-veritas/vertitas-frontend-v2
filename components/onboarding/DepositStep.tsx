@@ -9,7 +9,7 @@ import { erc20Abi } from "@/lib/uma/abi";
 import { collateralVaultAbi } from "@/lib/deposit/abi";
 import { COLLATERAL_VAULT, USDCC_DECIMALS, USDCC_TOKEN } from "@/lib/deposit/config";
 import { useDepositState } from "@/lib/deposit/useDepositState";
-import { postDeposit } from "@/lib/profile/data";
+import { collateralQueryKey, postDeposit } from "@/lib/profile/data";
 import { MonoLabel } from "../landing/ui/MonoLabel";
 import { TxButton } from "../terminal/oracle/TxButton";
 import { ModalBody, ModalFooter } from "./ModalShell";
@@ -90,7 +90,7 @@ export function DepositStep({
       await postDeposit(hash);
       // postDeposit resolves only after the backend has re-synced the ledger,
       // so invalidating now makes the topbar readout refetch fresh numbers.
-      void queryClient.invalidateQueries({ queryKey: ["collateral"] });
+      void queryClient.invalidateQueries({ queryKey: collateralQueryKey(address) });
       onDeposited();
       onClose();
     } catch (e) {
