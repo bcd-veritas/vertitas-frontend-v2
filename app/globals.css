@@ -580,14 +580,6 @@ input.date-input:focus::-webkit-calendar-picker-indicator {
 .landing-v2 .text-no {
   color: var(--no);
 }
-#forge-flash {
-  position: fixed;
-  inset: 0;
-  z-index: 40;
-  background: #fff;
-  opacity: 0;
-  pointer-events: none;
-}
 /* vignette above canvas, below text */
 .landing-v2::after {
   content: "";

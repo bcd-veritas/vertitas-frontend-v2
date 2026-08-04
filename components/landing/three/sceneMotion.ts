@@ -54,6 +54,11 @@ export type SceneMotion = {
   /** count numerals: 0 = solid-still (matches the DOM counter), 1 = fully
    *  disintegrated — drives the grain-up/fray-apart dissolve at 100 */
   dissolve: number;
+  /** 0 = normal per-seed morph stagger; 1 = arrival ordered by build tier
+   *  (rim ring erupts first, face condenses, $ stamps last) — the coin
+   *  birth after the entrance collapse. Only ever SET (0 or 1), never
+   *  tweened: intermediate values un-complete a finished morph. */
+  kindLag: number;
   /** coin rotX — 0.28 is the hero pose, π/2+2πk lies it flat (k = tumbles) */
   tilt: number;
   /** particle group world-y offset (the coin's fall to the floor) */
@@ -80,6 +85,7 @@ export const ENTRY_MOTION: SceneMotion = {
   bgGlow: 0,
   countValue: 100, // the DOM counter counts; particles only ever show 100
   dissolve: 0,
+  kindLag: 0,
   tilt: 0.28,
   posY: 0,
   worldY: 0,

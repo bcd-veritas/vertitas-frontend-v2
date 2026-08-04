@@ -32,7 +32,7 @@ const vertexShader = /* glsl */ `
   attribute vec3 aNumB; // loader numeral target ("100" — JS fills once)
   uniform float uTime, uHalfW, uHalfH, uCoinR, uFormA, uFormB, uMix, uSpin,
                 uRise, uTint, uDamp, uAlpha, uTurb, uPx, uExposure, uSweep,
-                uTiltX, uDissolve;
+                uTiltX, uDissolve, uKindLag;
 
   varying vec3 vColor;
   varying float vAlpha;
@@ -109,7 +109,20 @@ const vertexShader = /* glsl */ `
             + (aSeed.y - 0.5) * 0.05 * uHalfH;
     return vec3(x, y, (aSeed.z - 0.5) * 0.06);
   }
-  vec3 pPoint() { return sphereDir() * 0.04 * uHalfH * aSeed.y; }
+  vec3 pPoint() {
+    // The globe (WordGlobe homage): particles ride 24 twisted meridian
+    // bands pole-to-pole over a 3D sphere — a spinning lattice of light.
+    // Additive blending lets the far-side bands glow through, giving the
+    // hologram-globe depth. uSpin carries the collapse's angular momentum
+    // straight through the held beat into the coin's idle spin.
+    float band = floor(aSeed.x * 24.0);
+    float theta = (0.04 + 0.92 * aSeed.w) * PI;
+    float phi = band * (PI / 12.0) + 1.35 * theta + 0.35 * sin(theta)
+              + (aSeed.y - 0.5) * 0.05;
+    float R = (0.30 + (aSeed.z - 0.5) * 0.02) * uHalfH;
+    vec3 p = vec3(sin(theta) * cos(phi), cos(theta), sin(theta) * sin(phi)) * R;
+    return rotX(rotY(p, uSpin), uTiltX);
+  }
   vec3 pBurst() { return sphereDir() * (0.25 + 1.35 * aSeed.y) * uHalfH; }
   vec3 pMini()  { return pCoin(0.26, vec3(0.0, 0.46 * uHalfH, 0.0)); }
   vec3 pVerdict() {
@@ -171,9 +184,16 @@ const vertexShader = /* glsl */ `
   void main() {
     vec3 pa = formPos(uFormA);
     vec3 pb = formPos(uFormB);
-    // Per-particle stagger: each departs/arrives on its own offset.
+    // Per-particle stagger: each departs/arrives on its own offset. At
+    // uKindLag 1 (the entrance birth) the offset runs by build tier
+    // instead — rim ring erupts first, face condenses behind it, the $
+    // stamps last (its 0.25 window = the stamp's snap). The divisor blend
+    // keeps uKindLag 0 bit-identical to the original 0.7 constant.
+    float kd = 0.28 * (1.0 - step(0.5, aKind)) + 0.52 * step(1.5, aKind);
+    float off = mix(aSeed.w * 0.3, kd + aSeed.w * 0.23, uKindLag);
     float m = smoothstep(0.0, 1.0,
-                         clamp((uMix - aSeed.w * 0.3) / 0.7, 0.0, 1.0));
+                         clamp((uMix - off) / mix(0.7, 1.0 - off, uKindLag),
+                               0.0, 1.0));
     vec3 p = mix(pa, pb, m);
     // Curl turbulence, peaking mid-transition, zero at endpoints.
     float env = 4.0 * m * (1.0 - m);
@@ -518,6 +538,7 @@ export function ParticleEngine({
           uSweep: { value: -2.5 },
           uTiltX: { value: 0.28 },
           uDissolve: { value: 0 },
+          uKindLag: { value: 0 },
         },
         blending: THREE.AdditiveBlending,
         depthWrite: false,
@@ -561,6 +582,7 @@ export function ParticleEngine({
     u.uSweep.value = m.sweep;
     u.uTiltX.value = m.tilt;
     u.uDissolve.value = m.dissolve;
+    u.uKindLag.value = m.kindLag;
 
     // The particle numerals only ever show round(countValue) — the DOM
     // counter does the visible counting; particles take over at 100.

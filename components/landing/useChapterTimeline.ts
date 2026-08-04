@@ -3,9 +3,7 @@
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useGSAP } from "@gsap/react";
-import { useRef } from "react";
 import { FORM, sceneMotion } from "./three/sceneMotion";
-import { flashScreen } from "./useForgeEntrance";
 
 gsap.registerPlugin(ScrollTrigger, useGSAP);
 
@@ -56,8 +54,6 @@ export function splitChars(el: HTMLElement) {
  *  - a scrubbed text-reveal timeline (char stagger in, fade out).
  */
 export function useChapterTimeline(enabled: boolean) {
-  const truthFlashed = useRef(false);
-
   useGSAP(
     () => {
       if (!enabled) return;
@@ -94,7 +90,7 @@ export function useChapterTimeline(enabled: boolean) {
       });
       // Resolution: a white-hot scanline sweeps the ribbon, locking price
       // to mint as it passes — then the ribbon reassembles into a giant
-      // pixel YES (flash on lock). Camera pushes in the whole way.
+      // pixel YES. Camera pushes in the whole way.
       ScrollTrigger.create({
         trigger: "#act-truth",
         start: "top top",
@@ -109,7 +105,6 @@ export function useChapterTimeline(enabled: boolean) {
             sceneMotion.mix = 0;
             sceneMotion.sweep = -1.4 + q * 2.8;
             sceneMotion.damp = 1 - 0.6 * q;
-            truthFlashed.current = false;
           } else {
             const q = (p - 0.5) * 2;
             sceneMotion.formA = FORM.RIBBON;
@@ -117,10 +112,6 @@ export function useChapterTimeline(enabled: boolean) {
             sceneMotion.mix = ease(q);
             sceneMotion.sweep = 1.4;
             sceneMotion.damp = 0.4;
-            if (q > 0.6 && !truthFlashed.current) {
-              truthFlashed.current = true;
-              flashScreen(0.5);
-            }
           }
           sceneMotion.zoom = 1 + 0.08 * ease(Math.min(1, p * 1.4));
           sceneMotion.bgShift = gsap.utils.clamp(0, 1, (p - 0.75) / 0.25);

@@ -14,7 +14,7 @@ export function PayoutAct() {
             for being right
           </PixelHeading>
           <Link
-            href="/markets"
+            href="/home"
             className="mt-9 inline-block border border-[var(--yes)] px-10 py-4
                        font-mono text-[13px] uppercase tracking-[0.35em]
                        text-[var(--yes)] transition-colors duration-300
