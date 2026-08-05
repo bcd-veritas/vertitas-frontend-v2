@@ -1,36 +1,78 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Frontend Setup
+
+This guide walks you through setting up and running the Veritas frontend locally.
+
+## Prerequisites
+
+Before you begin, ensure you have the following installed:
+
+* **Node.js**: v20 LTS or v22 LTS (recommended)
+* **npm**: v10 or later
+* *(Optional)* **nvm** for managing Node.js versions
+
+---
 
 ## Getting Started
 
-First, run the development server:
+### 1. Clone the repository
 
-```bash 
-npm run dev
-# or 
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+```bash
+git clone https://github.com/bcd-veritas/vertitas-frontend-v2.git
+cd vertitas-frontend-v2
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2. Install dependencies
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+If you use **nvm**, switch to a supported Node.js version first:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+nvm use 20
+# or
+nvm use 22
+```
 
-## Learn More
+Then install the project dependencies:
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npm install
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+---
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### 3. Configure environment variables
 
-## Deploy on Vercel
+Create your local environment files from the provided templates:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+cp .env.development.example .env.development
+cp .env.production.example .env.production
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Update the environment variables with the appropriate values.
+
+> **Tip:** If you want to run the application using the production configuration, you may copy the production environment values into `.env.development`.
+
+---
+
+### 4. Start the development server
+
+```bash
+npm run dev
+```
+
+Once the server has started, open your browser and navigate to:
+
+```
+http://localhost:3001
+```
+
+---
+
+# Available Scripts
+
+| Command         | Description                                   |
+| --------------- | --------------------------------------------- |
+| `npm run dev`   | Starts the development server.                |
+| `npm run build` | Builds the application for production.        |
+| `npm run start` | Serves the production build on port **3001**. |
+| `npm run lint`  | Runs ESLint to check code quality.            |
