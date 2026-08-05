@@ -534,3 +534,81 @@ input.date-input:focus::-webkit-calendar-picker-indicator {
     opacity: var(--o);
   }
 }
+
+/* ── Landing v2 ("From Noise to Truth") ─────────────────────────────
+   Full-screen particle chapters. The WebGL canvas paints the background
+   (z-0); DOM copy sits above it (z-10); grain/vignette between (z-5).
+   Brighter duo-tone than the app's rank colors on purpose — the landing
+   is cinema, the app is instrumentation. Mint = Yes, coral = No. */
+.landing-v2 {
+  --yes: #6ee7a0;
+  --no: #ff6b5e;
+  background: #0a0a0e;
+}
+.landing-v2 .act {
+  position: relative;
+}
+.landing-v2 .act-sticky {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  overflow: hidden;
+}
+.landing-v2 .act-copy {
+  position: relative;
+  z-index: 10;
+  max-width: 42rem;
+  opacity: 0; /* scroll timeline reveals; .landing-rm forces visible */
+}
+.landing-v2 .act-title {
+  font-size: clamp(2.6rem, 7vw, 6.5rem);
+}
+.landing-v2 .act-sub {
+  margin-top: 1.4rem;
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  line-height: 1.7;
+  color: #8a8784;
+  max-width: 36ch;
+}
+.landing-v2 .text-yes {
+  color: var(--yes);
+}
+.landing-v2 .text-no {
+  color: var(--no);
+}
+/* vignette above canvas, below text */
+.landing-v2::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse at 50% 50%,
+    transparent 55%,
+    rgba(0, 0, 0, 0.5) 100%
+  );
+}
+/* Elements that appear once the forge entrance completes */
+.landing-v2 .fade-on-enter {
+  opacity: 0;
+  transition: opacity 1.2s ease;
+}
+.landing-v2.landing-entered .fade-on-enter {
+  opacity: 1;
+}
+/* Reduced motion / no-WebGL: static readable page, no pins, no reveals */
+.landing-rm .act {
+  height: auto !important;
+  min-height: 100vh;
+}
+.landing-rm .act-copy,
+.landing-rm .fade-on-enter,
+.landing-rm #hero-copy,
+.landing-rm .scroll-cue {
+  opacity: 1 !important;
+}

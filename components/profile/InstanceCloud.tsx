@@ -4,7 +4,7 @@ import { useRef, useSyncExternalStore } from "react";
 import * as THREE from "three";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { usePrefersReducedMotion } from "../landing/usePrefersReducedMotion";
-import { supportsWebGL } from "../landing/three/TokenCanvas";
+import { supportsWebGL } from "../landing/three/ParticleCanvas";
 
 /**
  * The reference's RENDERING INSTANCE CLOUD, faithfully: a three.js field of
