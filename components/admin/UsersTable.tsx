@@ -252,8 +252,8 @@ export function UsersTable() {
   }, [search]);
 
   const { data, isLoading, isPlaceholderData } = useQuery({
-    queryKey: ['admin-users', page, debounced],
-    queryFn: () => getAdminUsers(page, 10, debounced),
+    queryKey: ["admin-users", page, debounced, roleFilter],
+    queryFn: () => getAdminUsers(page, 10, debounced, roleFilter),
     placeholderData: keepPreviousData,
     refetchInterval: 30_000,
   });
@@ -268,14 +268,14 @@ export function UsersTable() {
   });
   const actorRole = access?.role ?? null;
 
-  // Filter items by roleFilter if specified
-  const filteredItems = (data?.items ?? []).filter(
-    (u) => roleFilter === 'ALL' || u.role === roleFilter,
-  );
+  // Role filtering happens server-side (see getAdminUsers) so it composes
+  // correctly with pagination — `data.items` is already just this page's
+  // slice of the filtered set, `data.total`/`totalPages` already reflect it.
+  const items = data?.items ?? [];
 
   // On-chain status is fetched separately from the (DB-only) users list, so a
   // dead RPC never breaks the table — it just yields no status items.
-  const oracleIds = filteredItems
+  const oracleIds = items
     .filter((u) => isOracleRole(u.role))
     .map((u) => u.id);
 
@@ -360,7 +360,10 @@ export function UsersTable() {
             return (
               <button
                 key={r}
-                onClick={() => setRoleFilter(r)}
+                onClick={() => {
+                  setRoleFilter(r);
+                  setPage(1);
+                }}
                 className={`border px-2 py-1 font-mono text-[10px] uppercase tracking-wider transition-colors ${
                   active
                     ? 'border-fg/80 bg-fg/10 text-fg'
@@ -393,7 +396,7 @@ export function UsersTable() {
           <tbody>
             {isLoading ? (
               <SkeletonRows />
-            ) : !data || filteredItems.length === 0 ? (
+            ) : !data || items.length === 0 ? (
               <tr>
                 <td colSpan={6}>
                   <div className="relative my-2 overflow-hidden border border-line/60 py-10 text-center">
@@ -406,10 +409,7 @@ export function UsersTable() {
                     </p>
                     {(search || roleFilter !== 'ALL') && (
                       <button
-                        onClick={() => {
-                          setSearch('');
-                          setRoleFilter('ALL');
-                        }}
+                        onClick={() => { setSearch(""); setRoleFilter("ALL"); setPage(1); }}
                         className="relative mt-3 border border-line px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider text-muted transition-colors hover:border-fg hover:text-fg"
                       >
                         Reset filters
@@ -419,7 +419,7 @@ export function UsersTable() {
                 </td>
               </tr>
             ) : (
-              filteredItems.map((u: UserRow, i) => {
+              items.map((u: UserRow, i) => {
                 const self =
                   !!address &&
                   u.walletAddress.toLowerCase() === address.toLowerCase();

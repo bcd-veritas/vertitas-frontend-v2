@@ -60,9 +60,15 @@ export function getRecentMarkets(limit = 8): Promise<RecentMarketsResponse> {
   return getJson(`/recent-markets?limit=${limit}`);
 }
 
-export function getAdminUsers(page = 1, limit = 20, search = ""): Promise<UsersResponse> {
+export function getAdminUsers(
+  page = 1,
+  limit = 20,
+  search = "",
+  role = "",
+): Promise<UsersResponse> {
   const q = new URLSearchParams({ page: String(page), limit: String(limit) });
   if (search.trim()) q.set("search", search.trim());
+  if (role && role !== "ALL") q.set("role", role);
   return getJson(`/users?${q.toString()}`);
 }
 
